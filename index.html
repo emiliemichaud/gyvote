@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vote en salle — Accueil</title>
+<link rel="stylesheet" href="style.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase-config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+  <div class="masthead">
+    <div class="eyebrow">Séance de vote</div>
+    <h1>Vote en salle</h1>
+  </div>
+
+  <div class="card center stack">
+    <p class="hint">
+      Crée une nouvelle session, projette le QR code affiché à l'écran suivant,
+      et pilote les votes depuis cette même page.
+    </p>
+    <button id="createBtn">Démarrer une session</button>
+    <p id="err" class="hint" style="color:#8c2f27; display:none;"></p>
+  </div>
+
+  <script>
+    document.getElementById("createBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("createBtn");
+      const err = document.getElementById("err");
+      btn.disabled = true;
+      err.style.display = "none";
+      try {
+        const sb = getSupabaseClient();
+        const code = generateSessionCode();
+        const { data, error } = await sb
+          .from("sessions")
+          .insert({ code })
+          .select("id, code, host_secret")
+          .single();
+        if (error) throw error;
+        const url = new URL("host.html", window.location.href);
+        url.searchParams.set("s", data.code);
+        url.searchParams.set("t", data.host_secret);
+        window.location.href = url.toString();
+      } catch (e) {
+        err.textContent = "Erreur : " + e.message;
+        err.style.display = "block";
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vote en salle — Pupitre</title>
+<link rel="stylesheet" href="style.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+  <div class="masthead">
+    <div class="eyebrow">Pupitre de séance</div>
+    <h1 id="title">Vote en salle</h1>
+  </div>
+
+  <div id="app"></div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("s");
+    const secret = params.get("t");
+    const app = document.getElementById("app");
+
+    let session = null;
+    let votes = [];
+    let sb;
+
+    function statusLabel(s) {
+      return { idle: "En attente", voting: "Vote en cours", stopped: "Vote clos", results: "Résultats affichés" }[s] || s;
+    }
+
+    function render() {
+      if (!session) {
+        app.innerHTML = `<div class="card center hint">Chargement…</div>`;
+        return;
+      }
+      const counts = tallyCounts(votes);
+      const total = counts.pour + counts.contre + counts.abstention;
+      const url = voteUrlForCode(session.code);
+      const bannerClass = session.status === "voting" ? "voting" : session.status === "stopped" ? "stopped" : "";
+
+      app.innerHTML = `
+        <div class="card center">
+          <div class="status-banner ${bannerClass}">${statusLabel(session.status)}</div>
+          <div class="code-display">${session.code}</div>
+          <div id="qrcode"></div>
+          <div class="url-line">${url}</div>
+          <p class="hint">Les participants scannent ce QR code ou saisissent le code sur ${new URL("vote.html", window.location.href).origin}${new URL("vote.html", window.location.href).pathname}</p>
+        </div>
+
+        <div class="card">
+          <div class="stack">
+            <button id="startBtn" ${session.status === "voting" ? "disabled" : ""}>Démarrer les votes</button>
+            <button id="stopBtn" ${session.status === "voting" ? "" : "disabled"}>Arrêter les votes</button>
+            <button id="resultsBtn" ${total === 0 ? "disabled" : ""}>Afficher les résultats des votes</button>
+            <button id="newBtn" class="secondary">Nouveau vote</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="eyebrow center" style="display:block; margin-bottom:6px;">Dépouillement en direct</div>
+          <div class="tally">
+            ${tallyRow("Pour", "pour", counts.pour, total)}
+            ${tallyRow("Contre", "contre", counts.contre, total)}
+            ${tallyRow("Abstention", "abst", counts.abstention, total)}
+          </div>
+          <div class="turnout" style="margin-top:14px;">${total} vote${total > 1 ? "s" : ""} enregistré${total > 1 ? "s" : ""}</div>
+        </div>
+      `;
+
+      QRCode.toCanvas(document.querySelector("#qrcode"), url, { width: 220, margin: 1, color: { dark: "#1c2321", light: "#ffffff" } });
+
+      document.getElementById("startBtn").onclick = () => updateStatus("voting");
+      document.getElementById("stopBtn").onclick = () => updateStatus("stopped");
+      document.getElementById("resultsBtn").onclick = () => updateStatus("results");
+      document.getElementById("newBtn").onclick = createNewSession;
+    }
+
+    function tallyRow(label, cls, count, total) {
+      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+      return `
+        <div class="label ${cls}">${label}</div>
+        <div class="count">${count}</div>
+        <div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
+      `;
+    }
+
+    async function updateStatus(status) {
+      const { error } = await sb.from("sessions").update({ status }).eq("id", session.id);
+      if (error) { alert("Erreur : " + error.message); return; }
+      session.status = status;
+      render();
+    }
+
+    async function createNewSession() {
+      const newCode = generateSessionCode();
+      const { data, error } = await sb.from("sessions").insert({ code: newCode }).select("id, code, host_secret, status").single();
+      if (error) { alert("Erreur : " + error.message); return; }
+      const url = new URL(window.location.href);
+      url.searchParams.set("s", data.code);
+      url.searchParams.set("t", data.host_secret);
+      window.history.replaceState({}, "", url.toString());
+      session = data;
+      votes = [];
+      subscribeRealtime();
+      render();
+    }
+
+    // Le compteur affiché n'est jamais incrémenté "à la main" en JS : on relit
+    // toujours l'ensemble des lignes réellement présentes en base (COUNT côté
+    // source de vérité), pour rester correct même sous forte concurrence.
+    async function resyncVotes() {
+      const { data, error } = await sb.from("votes").select("choice").eq("session_id", session.id);
+      if (!error) {
+        votes = data || [];
+        render();
+      }
+    }
+
+    let channel = null;
+    let resyncTimer = null;
+    function subscribeRealtime() {
+      if (channel) sb.removeChannel(channel);
+      if (resyncTimer) clearInterval(resyncTimer);
+      // Le temps réel donne l'affichage instantané...
+      channel = sb.channel("votes-host-" + session.id)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "votes", filter: `session_id=eq.${session.id}` }, () => {
+          resyncVotes();
+        })
+        .subscribe();
+      // ...et un recomptage périodique sert de filet de sécurité si un
+      // événement temps réel venait à être manqué pendant un pic de votes.
+      resyncTimer = setInterval(resyncVotes, 4000);
+    }
+
+    async function init() {
+      if (!code || !secret) {
+        app.innerHTML = `<div class="card center hint">Lien invalide. <a href="index.html">Démarrer une nouvelle session</a></div>`;
+        return;
+      }
+      sb = getSupabaseClient();
+      const { data, error } = await sb.from("sessions").select("*").eq("code", code).single();
+      if (error || !data || data.host_secret !== secret) {
+        app.innerHTML = `<div class="card center hint">Lien invalide ou expiré. <a href="index.html">Démarrer une nouvelle session</a></div>`;
+        return;
+      }
+      session = data;
+      const { data: existingVotes } = await sb.from("votes").select("choice").eq("session_id", session.id);
+      votes = existingVotes || [];
+      subscribeRealtime();
+      render();
+    }
+
+    init();
+  </script>
+</body>
+</html>

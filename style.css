@@ -1,0 +1,241 @@
+/* ============================================================
+   Thème : registre d'assemblée — sobre, imprimé, officiel.
+   Le tableau de dépouillement (tally board) est l'élément signature.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+:root {
+  --ink:      #1c2321;
+  --paper:    #efe9dd;
+  --paper-2:  #e5dcc9;
+  --rule:     #b8ac94;
+  --pour:     #2f5233;
+  --pour-bg:  #e4ebe0;
+  --contre:   #8c2f27;
+  --contre-bg:#f1e2df;
+  --abst:     #93691f;
+  --abst-bg:  #efe6d2;
+  --radius:   2px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 48px;
+}
+
+h1, h2, h3 { font-family: 'Fraunces', serif; font-weight: 600; margin: 0; }
+
+.eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0.6;
+}
+
+.masthead {
+  width: 100%;
+  max-width: 560px;
+  text-align: center;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 18px;
+  margin-bottom: 28px;
+}
+.masthead h1 { font-size: 28px; }
+.masthead .eyebrow { margin-bottom: 6px; }
+
+.card {
+  width: 100%;
+  max-width: 560px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin-bottom: 20px;
+  position: relative;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid var(--rule);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.center { text-align: center; }
+
+button {
+  font-family: 'Source Sans 3', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  cursor: pointer;
+  width: 100%;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+button:hover { opacity: 0.88; }
+button:active { transform: translateY(1px); }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+button.secondary {
+  background: transparent;
+  color: var(--ink);
+}
+
+.stack { display: flex; flex-direction: column; gap: 12px; }
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 480px) {
+  .choice-grid { grid-template-columns: 1fr 1fr 1fr; }
+}
+
+.choice-btn {
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 600;
+  padding: 28px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+}
+.choice-btn.pour    { border-color: var(--pour);   color: var(--pour); }
+.choice-btn.contre  { border-color: var(--contre); color: var(--contre); }
+.choice-btn.abst    { border-color: var(--abst);   color: var(--abst); }
+.choice-btn.pour:hover    { background: var(--pour-bg); }
+.choice-btn.contre:hover  { background: var(--contre-bg); }
+.choice-btn.abst:hover    { background: var(--abst-bg); }
+
+.status-banner {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 8px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+  display: inline-block;
+}
+.status-banner.voting  { color: var(--pour);   border-color: var(--pour); }
+.status-banner.stopped { color: var(--contre); border-color: var(--contre); }
+
+/* Tableau de dépouillement */
+.tally {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 10px;
+  column-gap: 16px;
+  align-items: center;
+  margin-top: 16px;
+}
+.tally .label {
+  font-family: 'Fraunces', serif;
+  font-size: 18px;
+}
+.tally .label.pour   { color: var(--pour); }
+.tally .label.contre { color: var(--contre); }
+.tally .label.abst   { color: var(--abst); }
+.tally .count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 28px;
+  font-weight: 600;
+  min-width: 3ch;
+  text-align: right;
+}
+.tally .bar-track {
+  grid-column: 1 / -1;
+  height: 6px;
+  background: var(--paper-2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: -2px;
+}
+.tally .bar-fill { height: 100%; }
+.tally .bar-fill.pour   { background: var(--pour); }
+.tally .bar-fill.contre { background: var(--contre); }
+.tally .bar-fill.abst   { background: var(--abst); }
+
+.verdict {
+  font-family: 'Fraunces', serif;
+  font-size: 34px;
+  font-weight: 700;
+  text-align: center;
+  margin: 6px 0 2px;
+}
+.verdict.pour   { color: var(--pour); }
+.verdict.contre { color: var(--contre); }
+
+.turnout {
+  font-family: 'IBM Plex Mono', monospace;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.75;
+  margin-bottom: 18px;
+}
+
+.code-display {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-align: center;
+  padding: 10px 0;
+}
+
+#qrcode {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  margin: 0 auto 14px;
+  width: fit-content;
+}
+
+.url-line {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  text-align: center;
+  word-break: break-all;
+  opacity: 0.75;
+  margin-bottom: 18px;
+}
+
+.hint {
+  font-size: 14px;
+  opacity: 0.7;
+  text-align: center;
+}
+
+.locked-msg {
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  text-align: center;
+  padding: 40px 10px;
+}
