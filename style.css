@@ -207,7 +207,7 @@ button.secondary {
   padding: 10px 0;
 }
 
-#qrcode {
+.qrcode-wrap {
   display: flex;
   justify-content: center;
   padding: 16px;
@@ -217,6 +217,7 @@ button.secondary {
   margin: 0 auto 14px;
   width: fit-content;
 }
+.qrcode-wrap canvas { display: block; }
 
 .url-line {
   font-family: 'IBM Plex Mono', monospace;
