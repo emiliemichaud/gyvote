@@ -26,6 +26,7 @@
 
     let session = null;
     let votes = [];
+    let onlineCount = 0;
     let sb;
 
     function statusLabel(s) {
@@ -62,6 +63,7 @@
 
         <div class="card">
           <div class="eyebrow center" style="display:block; margin-bottom:6px;">Dépouillement en direct</div>
+          <div class="turnout" style="margin-bottom:8px;">${onlineCount} connexion${onlineCount > 1 ? "s" : ""} en ce moment</div>
           <div class="tally">
             ${tallyRow("Pour", "pour", counts.pour, total)}
             ${tallyRow("Contre", "contre", counts.contre, total)}
@@ -127,9 +129,11 @@
     }
 
     let channel = null;
+    let presenceChannel = null;
     let resyncTimer = null;
     function subscribeRealtime() {
       if (channel) sb.removeChannel(channel);
+      if (presenceChannel) sb.removeChannel(presenceChannel);
       if (resyncTimer) clearInterval(resyncTimer);
       // Le temps réel donne l'affichage instantané...
       channel = sb.channel("votes-host-" + session.id)
@@ -140,6 +144,16 @@
       // ...et un recomptage périodique sert de filet de sécurité si un
       // événement temps réel venait à être manqué pendant un pic de votes.
       resyncTimer = setInterval(resyncVotes, 4000);
+
+      // Canal de présence : chaque votant sur vote.html "s'annonce" sur ce
+      // même canal (session-<id>). On ne fait que l'écouter ici, sans s'y
+      // annoncer soi-même, pour compter uniquement les participants connectés.
+      presenceChannel = sb.channel("session-" + session.id, { config: { presence: {} } })
+        .on("presence", { event: "sync" }, () => {
+          onlineCount = Object.keys(presenceChannel.presenceState()).length;
+          render();
+        })
+        .subscribe();
     }
 
     async function init() {

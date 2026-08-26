@@ -125,13 +125,20 @@
     }
 
     function subscribeRealtime() {
-      sb.channel("session-" + session.id)
+      const channel = sb.channel("session-" + session.id, { config: { presence: { key: voterId } } });
+      channel
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, (payload) => {
           session.status = payload.new.status;
           if (session.status === "results") fetchVotesForResults();
           else render();
         })
-        .subscribe();
+        .subscribe(async (status) => {
+          if (status === "SUBSCRIBED") {
+            // Signale la présence de ce votant sur le canal de la session,
+            // pour que host.html puisse afficher le nombre de connexions en direct.
+            await channel.track({ online_at: new Date().toISOString() });
+          }
+        });
     }
 
     async function init() {
