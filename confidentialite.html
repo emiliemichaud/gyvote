@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vote — Confidentialité</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="masthead">
+    <div class="eyebrow">Confidentialité</div>
+    <h1>Données personnelles</h1>
+  </div>
+
+  <div class="card stack">
+    <div>
+      <h3 style="margin-bottom:6px;">Quelles données sont collectées ?</h3>
+      <p class="hint" style="text-align:left;">
+        Cette application ne demande ni nom, ni adresse e-mail, ni aucune autre
+        donnée d'identification directe. Les seules données enregistrées sont :
+      </p>
+      <ul class="hint" style="text-align:left; padding-left:20px;">
+        <li>Un <strong>identifiant anonyme aléatoire</strong> (une longue suite de
+          caractères sans signification), généré par votre navigateur la première
+          fois que vous ouvrez un lien de vote. Il sert uniquement à garantir
+          qu'une même personne ne vote qu'une seule fois par session.</li>
+        <li>Le <strong>choix de vote</strong> (Pour / Contre / Abstention) associé
+          à cet identifiant et à la session concernée.</li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 style="margin-bottom:6px;">Où ces données sont-elles stockées ?</h3>
+      <ul class="hint" style="text-align:left; padding-left:20px;">
+        <li><strong>Dans votre navigateur</strong> (stockage local, "localStorage") :
+          l'identifiant anonyme mentionné ci-dessus, propre à cet appareil et ce
+          navigateur.</li>
+        <li><strong>Dans une base de données Supabase</strong> (hébergement cloud
+          du projet — Europe ) :
+          l'identifiant anonyme et le choix de vote, ainsi que le code et le
+          statut de la session.</li>
+        <li>Les fichiers de l'application eux-mêmes sont hébergés sur
+          <strong>GitHub Pages</strong>, accessible via le nom de domaine
+          vote.gymnase-etoy.ch.</li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 style="margin-bottom:6px;">Combien de temps ces données sont-elles conservées ?</h3>
+      <p class="hint" style="text-align:left;">
+        Chaque session (et les votes qui lui sont associés) est supprimée
+        automatiquement au plus tard <strong>15 heures</strong> après sa création.
+        L'organisateur peut aussi la clôturer manuellement à tout moment, ce qui
+        supprime immédiatement toutes les données de cette session.
+      </p>
+    </div>
+
+    <div>
+      <h3 style="margin-bottom:6px;">Le vote est-il anonyme ?</h3>
+      <p class="hint" style="text-align:left;">
+        Oui : rien dans l'application ne relie l'identifiant technique utilisé à
+        votre identité réelle. Cet identifiant sert uniquement à empêcher les
+        votes multiples au sein d'une même session.
+      </p>
+    </div>
+
+    <div>
+      <h3 style="margin-bottom:6px;">Contact</h3>
+      <p class="hint" style="text-align:left;">
+        Pour toute question relative à ces données : direction du Gymnase d'Etoy. 
+      </p>
+    </div>
+  </div>
+
+  <p class="hint"><a href="index.html">← Retour à l'accueil</a></p>
+</body>
+</html>
