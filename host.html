@@ -6,7 +6,7 @@
 <title>Vote en salle — Pupitre</title>
 <link rel="stylesheet" href="style.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="supabase-config.js"></script>
 <script src="app.js"></script>
 </head>
@@ -46,7 +46,7 @@
         <div class="card center">
           <div class="status-banner ${bannerClass}">${statusLabel(session.status)}</div>
           <div class="code-display">${session.code}</div>
-          <div class="qrcode-wrap"><canvas id="qrcode"></canvas></div>
+          <div class="qrcode-wrap"><div id="qrcode"></div></div>
           <div class="url-line">${url}</div>
           <p class="hint">Les participants scannent ce QR code ou saisissent le code sur ${new URL("vote.html", window.location.href).origin}${new URL("vote.html", window.location.href).pathname}</p>
         </div>
@@ -71,7 +71,14 @@
         </div>
       `;
 
-      QRCode.toCanvas(document.querySelector("#qrcode"), url, { width: 220, margin: 1, color: { dark: "#1c2321", light: "#ffffff" } });
+      new QRCode(document.getElementById("qrcode"), {
+        text: url,
+        width: 220,
+        height: 220,
+        colorDark: "#1c2321",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
 
       document.getElementById("startBtn").onclick = () => updateStatus("voting");
       document.getElementById("stopBtn").onclick = () => updateStatus("stopped");

@@ -217,7 +217,8 @@ button.secondary {
   margin: 0 auto 14px;
   width: fit-content;
 }
-.qrcode-wrap canvas { display: block; }
+.qrcode-wrap canvas,
+.qrcode-wrap img { display: block; }
 
 .url-line {
   font-family: 'IBM Plex Mono', monospace;
