@@ -15,8 +15,20 @@
     <h1>Vote</h1>
   </div>
 
+   <div class="card center stack">
+    <div class="eyebrow" style="margin-bottom:4px;">Se connecter à une session</div>
+    <p class="hint">
+      Vous avez déjà un code de session ? Saisissez-le pour rejoindre le vote.
+    </p>
+    <input id="joinCode" class="code-input" type="text" placeholder="CODE" maxlength="5"
+           autocapitalize="characters" autocomplete="off" inputmode="text" />
+    <button id="joinBtn" class="secondary">Rejoindre la session</button>
+    <p id="joinErr" class="hint" style="color:#8c2f27; display:none;"></p>
+  </div>
+
+
   <div class="card center stack">
-    <div class="eyebrow" style="margin-bottom:4px;">Créer une session</div>
+    <div class="eyebrow" style="margin-bottom:4px;">Créer une session de votes</div>
     <p class="hint">
       Crée une nouvelle session, projette le QR code affiché à l'écran suivant,
       et pilote les votes depuis cette même page.
@@ -25,16 +37,7 @@
     <p id="err" class="hint" style="color:#8c2f27; display:none;"></p>
   </div>
 
-  <div class="card center stack">
-    <div class="eyebrow" style="margin-bottom:4px;">Se connecter à une session</div>
-    <p class="hint">
-      Tu as déjà un code de session ? Saisis-le pour rejoindre le vote.
-    </p>
-    <input id="joinCode" class="code-input" type="text" placeholder="CODE" maxlength="5"
-           autocapitalize="characters" autocomplete="off" inputmode="text" />
-    <button id="joinBtn" class="secondary">Rejoindre la session</button>
-    <p id="joinErr" class="hint" style="color:#8c2f27; display:none;"></p>
-  </div>
+ 
 
   <script>
     document.getElementById("createBtn").addEventListener("click", async () => {
