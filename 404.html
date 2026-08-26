@@ -132,6 +132,11 @@
           if (session.status === "results") fetchVotesForResults();
           else render();
         })
+        .on("postgres_changes", { event: "DELETE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, () => {
+          // La session a été clôturée et supprimée automatiquement (15h écoulées).
+          session = null;
+          app.innerHTML = `<div class="card center hint">Cette session a été clôturée automatiquement (15h écoulées) et n'est plus disponible.</div>`;
+        })
         .subscribe(async (status) => {
           if (status === "SUBSCRIBED") {
             // Signale la présence de ce votant sur le canal de la session,

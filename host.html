@@ -140,6 +140,12 @@
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "votes", filter: `session_id=eq.${session.id}` }, () => {
           resyncVotes();
         })
+        .on("postgres_changes", { event: "DELETE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, () => {
+          // La session a été clôturée et supprimée automatiquement (15h écoulées).
+          if (resyncTimer) clearInterval(resyncTimer);
+          session = null;
+          app.innerHTML = `<div class="card center hint">Cette session a été clôturée automatiquement (15h écoulées) et ses données ont été supprimées. <a href="index.html">Démarrer une nouvelle session</a></div>`;
+        })
         .subscribe();
       // ...et un recomptage périodique sert de filet de sécurité si un
       // événement temps réel venait à être manqué pendant un pic de votes.
