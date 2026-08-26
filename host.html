@@ -58,7 +58,7 @@
             <button id="startBtn" ${session.status === "voting" ? "disabled" : ""}>Démarrer les votes</button>
             <button id="stopBtn" ${session.status === "voting" ? "" : "disabled"}>Arrêter les votes</button>
             <button id="resultsBtn" ${total === 0 ? "disabled" : ""}>Afficher les résultats des votes</button>
-            <button id="newBtn" class="secondary">Nouveau vote</button>
+            <button id="newBtn" class="secondary">Nouveau vote (même session)</button>
           </div>
         </div>
 
@@ -85,7 +85,7 @@
       document.getElementById("startBtn").onclick = () => updateStatus("voting");
       document.getElementById("stopBtn").onclick = () => updateStatus("stopped");
       document.getElementById("resultsBtn").onclick = () => updateStatus("results");
-      document.getElementById("newBtn").onclick = createNewSession;
+      document.getElementById("newBtn").onclick = resetSessionForNewItem;
     }
 
     function tallyRow(label, cls, count, total) {
@@ -104,17 +104,21 @@
       render();
     }
 
-    async function createNewSession() {
-      const newCode = generateSessionCode();
-      const { data, error } = await sb.from("sessions").insert({ code: newCode }).select("id, code, host_secret, status").single();
-      if (error) { alert("Erreur : " + error.message); return; }
-      const url = new URL(window.location.href);
-      url.searchParams.set("s", data.code);
-      url.searchParams.set("t", data.host_secret);
-      window.history.replaceState({}, "", url.toString());
-      session = data;
+    async function resetSessionForNewItem() {
+      if (!confirm("Remettre les votes à zéro pour un nouvel objet, dans cette même session ? Les votes actuels seront définitivement supprimés.")) {
+        return;
+      }
+      const newBtn = document.getElementById("newBtn");
+      if (newBtn) newBtn.disabled = true;
+
+      const { error: delErr } = await sb.from("votes").delete().eq("session_id", session.id);
+      if (delErr) { alert("Erreur : " + delErr.message); if (newBtn) newBtn.disabled = false; return; }
+
+      const { error: updErr } = await sb.from("sessions").update({ status: "idle" }).eq("id", session.id);
+      if (updErr) { alert("Erreur : " + updErr.message); if (newBtn) newBtn.disabled = false; return; }
+
+      session.status = "idle";
       votes = [];
-      subscribeRealtime();
       render();
     }
 

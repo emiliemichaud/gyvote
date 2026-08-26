@@ -129,10 +129,20 @@
     function subscribeRealtime() {
       const channel = sb.channel("session-" + session.id, { config: { presence: { key: voterId } } });
       channel
-        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, (payload) => {
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, async (payload) => {
+          const previousStatus = session.status;
           session.status = payload.new.status;
-          if (session.status === "results") fetchVotesForResults();
-          else render();
+          if (session.status === "results") {
+            fetchVotesForResults();
+          } else if (session.status === "idle" && previousStatus !== "idle") {
+            // L'organisateur a lancé un nouveau tour de vote dans la même
+            // session : les votes précédents ont été effacés côté serveur,
+            // donc on revérifie si on a déjà voté (normalement plus le cas).
+            await checkHasVoted();
+            render();
+          } else {
+            render();
+          }
         })
         .on("postgres_changes", { event: "DELETE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, () => {
           // La session a été clôturée et supprimée automatiquement (15h écoulées).
