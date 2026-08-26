@@ -1,10 +1,6 @@
 /* ============================================================
-   Thème : registre officiel — sobre, institutionnel, cantonal.
-   Inspiré de la charte visuelle du site vd.ch (bleu marine,
-   fond blanc, hairlines) et du bicolore blanc-vert du drapeau
-   vaudois ("Liberté et Patrie"), utilisé comme filet signature.
-   Aucune police externe : pile système uniquement, pour
-   minimiser les dépendances réseau une fois hébergé en local.
+   Thème : registre officiel — bleu marine,
+   fond blanc, hairlines et du bicolore blanc-vert du drapeau
    ============================================================ */
 
 :root {
