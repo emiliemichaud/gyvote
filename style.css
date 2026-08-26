@@ -110,6 +110,13 @@ button.secondary {
 }
 button.secondary:hover { background: var(--paper-2); }
 
+button.danger {
+  background: var(--paper);
+  color: var(--contre);
+  border-color: var(--contre);
+}
+button.danger:hover { background: var(--contre-bg); }
+
 .stack { display: flex; flex-direction: column; gap: 12px; }
 
 .choice-grid {

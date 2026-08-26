@@ -72,6 +72,11 @@
           </div>
           <div class="turnout" style="margin-top:14px;">${total} vote${total > 1 ? "s" : ""} enregistré${total > 1 ? "s" : ""}</div>
         </div>
+
+        <div class="card">
+          <button id="closeBtn" class="danger">Clôture de session</button>
+          <p class="hint" style="margin-top:10px;">Ferme définitivement cette session et supprime tous ses votes de la base de données. Action irréversible.</p>
+        </div>
       `;
 
       new QRCode(document.getElementById("qrcode"), {
@@ -86,6 +91,7 @@
       document.getElementById("stopBtn").onclick = () => updateStatus("stopped");
       document.getElementById("resultsBtn").onclick = () => updateStatus("results");
       document.getElementById("newBtn").onclick = resetSessionForNewItem;
+      document.getElementById("closeBtn").onclick = closeSessionPermanently;
     }
 
     function tallyRow(label, cls, count, total) {
@@ -102,6 +108,26 @@
       if (error) { alert("Erreur : " + error.message); return; }
       session.status = status;
       render();
+    }
+
+    async function closeSessionPermanently() {
+      if (!confirm("Clôturer définitivement cette session ? Tous les votes seront supprimés et le lien ne fonctionnera plus. Cette action est irréversible.")) {
+        return;
+      }
+      const closeBtn = document.getElementById("closeBtn");
+      if (closeBtn) closeBtn.disabled = true;
+
+      const { error: delVotesErr } = await sb.from("votes").delete().eq("session_id", session.id);
+      if (delVotesErr) { alert("Erreur : " + delVotesErr.message); if (closeBtn) closeBtn.disabled = false; return; }
+
+      const { error: delSessionErr } = await sb.from("sessions").delete().eq("id", session.id);
+      if (delSessionErr) { alert("Erreur : " + delSessionErr.message); if (closeBtn) closeBtn.disabled = false; return; }
+
+      if (resyncTimer) clearInterval(resyncTimer);
+      if (channel) sb.removeChannel(channel);
+      if (presenceChannel) sb.removeChannel(presenceChannel);
+      session = null;
+      app.innerHTML = `<div class="card center hint">Cette session a été clôturée et ses données ont été supprimées. <a href="index.html">Démarrer une nouvelle session</a></div>`;
     }
 
     async function resetSessionForNewItem() {
