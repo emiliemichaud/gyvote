@@ -1,22 +1,29 @@
 /* ============================================================
-   Thème : registre d'assemblée — sobre, imprimé, officiel.
-   Le tableau de dépouillement (tally board) est l'élément signature.
+   Thème : registre officiel — sobre, institutionnel, cantonal.
+   Inspiré de la charte visuelle du site vd.ch (bleu marine,
+   fond blanc, hairlines) et du bicolore blanc-vert du drapeau
+   vaudois ("Liberté et Patrie"), utilisé comme filet signature.
+   Aucune police externe : pile système uniquement, pour
+   minimiser les dépendances réseau une fois hébergé en local.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
-
 :root {
-  --ink:      #1c2321;
-  --paper:    #efe9dd;
-  --paper-2:  #e5dcc9;
-  --rule:     #b8ac94;
-  --pour:     #2f5233;
-  --pour-bg:  #e4ebe0;
-  --contre:   #8c2f27;
-  --contre-bg:#f1e2df;
-  --abst:     #93691f;
-  --abst-bg:  #efe6d2;
-  --radius:   2px;
+  --ink:      #16232f;
+  --navy:     #1d3557;
+  --navy-2:   #14263f;
+  --paper:    #ffffff;
+  --paper-2:  #f2f5f7;
+  --rule:     #d6dde3;
+  --pour:      #0f7a3d;
+  --pour-bg:   #e8f4ec;
+  --contre:    #b3261e;
+  --contre-bg: #fbeceb;
+  --abst:      #5b6b78;
+  --abst-bg:   #eef1f3;
+  --radius:   3px;
+
+  --font-sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 * { box-sizing: border-box; }
@@ -24,9 +31,9 @@
 html, body {
   margin: 0;
   min-height: 100%;
-  background: var(--paper);
+  background: var(--paper-2);
   color: var(--ink);
-  font-family: 'Source Sans 3', system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 body {
@@ -36,26 +43,37 @@ body {
   padding: 24px 16px 48px;
 }
 
-h1, h2, h3 { font-family: 'Fraunces', serif; font-weight: 600; margin: 0; }
+h1, h2, h3 { font-family: var(--font-sans); font-weight: 800; letter-spacing: -0.01em; margin: 0; }
 
 .eyebrow {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink);
-  opacity: 0.6;
+  color: var(--navy);
+  opacity: 0.85;
 }
 
+/* Filet bicolore signature — clin d'œil au drapeau vaudois */
 .masthead {
   width: 100%;
   max-width: 560px;
   text-align: center;
-  border-bottom: 1px solid var(--rule);
   padding-bottom: 18px;
   margin-bottom: 28px;
+  border-bottom: none;
+  position: relative;
 }
-.masthead h1 { font-size: 28px; }
+.masthead::after {
+  content: "";
+  display: block;
+  height: 4px;
+  margin-top: 18px;
+  background: linear-gradient(to right, var(--pour) 0 50%, #ffffff 50% 100%);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+.masthead h1 { font-size: 26px; color: var(--navy-2); }
 .masthead .eyebrow { margin-bottom: 6px; }
 
 .card {
@@ -63,43 +81,38 @@ h1, h2, h3 { font-family: 'Fraunces', serif; font-weight: 600; margin: 0; }
   max-width: 560px;
   background: var(--paper);
   border: 1px solid var(--rule);
+  border-top: 3px solid var(--navy);
   border-radius: var(--radius);
   padding: 28px;
   margin-bottom: 20px;
   position: relative;
-}
-.card::before {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border: 1px solid var(--rule);
-  opacity: 0.35;
-  pointer-events: none;
+  box-shadow: 0 1px 2px rgba(22, 35, 47, 0.04);
 }
 
 .center { text-align: center; }
 
 button {
-  font-family: 'Source Sans 3', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
   font-size: 16px;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  border: 1px solid var(--navy);
+  background: var(--navy);
+  color: #ffffff;
   border-radius: var(--radius);
   padding: 14px 20px;
   cursor: pointer;
   width: 100%;
-  transition: transform 0.08s ease, opacity 0.15s ease;
+  transition: background 0.12s ease, opacity 0.15s ease;
 }
-button:hover { opacity: 0.88; }
+button:hover { background: var(--navy-2); }
 button:active { transform: translateY(1px); }
 button:disabled { opacity: 0.35; cursor: not-allowed; }
 
 button.secondary {
   background: transparent;
-  color: var(--ink);
+  color: var(--navy);
 }
+button.secondary:hover { background: var(--paper-2); }
 
 .stack { display: flex; flex-direction: column; gap: 12px; }
 
@@ -113,14 +126,14 @@ button.secondary {
 }
 
 .choice-btn {
-  font-family: 'Fraunces', serif;
-  font-size: 20px;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 19px;
+  font-weight: 700;
   padding: 28px 12px;
   border-radius: var(--radius);
-  border: 1px solid var(--ink);
+  border: 1px solid var(--navy);
   background: var(--paper);
-  color: var(--ink);
+  color: var(--navy);
 }
 .choice-btn.pour    { border-color: var(--pour);   color: var(--pour); }
 .choice-btn.contre  { border-color: var(--contre); color: var(--contre); }
@@ -130,7 +143,7 @@ button.secondary {
 .choice-btn.abst:hover    { background: var(--abst-bg); }
 
 .status-banner {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -140,6 +153,7 @@ button.secondary {
   border-radius: var(--radius);
   margin-bottom: 18px;
   display: inline-block;
+  color: var(--navy);
 }
 .status-banner.voting  { color: var(--pour);   border-color: var(--pour); }
 .status-banner.stopped { color: var(--contre); border-color: var(--contre); }
@@ -154,15 +168,16 @@ button.secondary {
   margin-top: 16px;
 }
 .tally .label {
-  font-family: 'Fraunces', serif;
-  font-size: 18px;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 17px;
 }
 .tally .label.pour   { color: var(--pour); }
 .tally .label.contre { color: var(--contre); }
 .tally .label.abst   { color: var(--abst); }
 .tally .count {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 28px;
+  font-family: var(--font-mono);
+  font-size: 26px;
   font-weight: 600;
   min-width: 3ch;
   text-align: right;
@@ -181,17 +196,18 @@ button.secondary {
 .tally .bar-fill.abst   { background: var(--abst); }
 
 .verdict {
-  font-family: 'Fraunces', serif;
-  font-size: 34px;
-  font-weight: 700;
+  font-family: var(--font-sans);
+  font-size: 32px;
+  font-weight: 800;
   text-align: center;
   margin: 6px 0 2px;
+  color: var(--navy-2);
 }
 .verdict.pour   { color: var(--pour); }
 .verdict.contre { color: var(--contre); }
 
 .turnout {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-mono);
   text-align: center;
   font-size: 13px;
   opacity: 0.75;
@@ -199,12 +215,13 @@ button.secondary {
 }
 
 .code-display {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 40px;
+  font-family: var(--font-mono);
+  font-size: 38px;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-align: center;
   padding: 10px 0;
+  color: var(--navy-2);
 }
 
 .qrcode-wrap {
@@ -220,7 +237,7 @@ button.secondary {
 .qrcode-wrap img, .qrcode-wrap canvas, .qrcode-wrap table { display: block; }
 
 .url-line {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   text-align: center;
   word-break: break-all;
@@ -235,8 +252,10 @@ button.secondary {
 }
 
 .locked-msg {
-  font-family: 'Fraunces', serif;
-  font-size: 20px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 19px;
   text-align: center;
   padding: 40px 10px;
+  color: var(--navy-2);
 }
