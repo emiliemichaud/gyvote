@@ -43,10 +43,30 @@ function getVoterId() {
   return id;
 }
 
+// Construit le lien court : https://ton-domaine/CODE
+// (au lieu de vote.html?s=CODE). Le CODE est ensuite retrouvé côté
+// vote.html grâce à getSessionCodeFromLocation(), avec l'aide de
+// 404.html qui prend le relais quand GitHub Pages ne trouve pas de
+// fichier correspondant au chemin demandé.
 function voteUrlForCode(code) {
-  const url = new URL("vote.html", window.location.href);
-  url.searchParams.set("s", code);
-  return url.toString();
+  return window.location.origin + "/" + code;
+}
+
+// Noms de fichiers à ignorer si jamais ils apparaissent dans le chemin
+// (cas où quelqu'un visite encore une ancienne URL du type /vote.html)
+const RESERVED_PATH_NAMES = ["", "index.html", "vote.html", "host.html", "404.html"];
+
+// Retrouve le code de session, qu'il soit passé en ?s=CODE (ancien format)
+// ou directement dans le chemin /CODE (nouveau format de lien court).
+function getSessionCodeFromLocation() {
+  const fromQuery = new URLSearchParams(window.location.search).get("s");
+  if (fromQuery) return fromQuery;
+
+  const segment = window.location.pathname.split("/").filter(Boolean).pop() || "";
+  if (!RESERVED_PATH_NAMES.includes(segment.toLowerCase())) {
+    return segment;
+  }
+  return null;
 }
 
 function tallyCounts(votes) {

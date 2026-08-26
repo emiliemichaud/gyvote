@@ -48,7 +48,7 @@
           <div class="code-display">${session.code}</div>
           <div class="qrcode-wrap"><div id="qrcode"></div></div>
           <div class="url-line">${url}</div>
-          <p class="hint">Les participants scannent ce QR code ou saisissent le code sur ${new URL("vote.html", window.location.href).origin}${new URL("vote.html", window.location.href).pathname}</p>
+          <p class="hint">Les participants scannent ce QR code ou saisissent le code sur ${window.location.origin}</p>
         </div>
 
         <div class="card">
