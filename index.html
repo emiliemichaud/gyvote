@@ -16,12 +16,24 @@
   </div>
 
   <div class="card center stack">
+    <div class="eyebrow" style="margin-bottom:4px;">Créer une session</div>
     <p class="hint">
       Crée une nouvelle session, projette le QR code affiché à l'écran suivant,
       et pilote les votes depuis cette même page.
     </p>
     <button id="createBtn">Démarrer une session</button>
     <p id="err" class="hint" style="color:#8c2f27; display:none;"></p>
+  </div>
+
+  <div class="card center stack">
+    <div class="eyebrow" style="margin-bottom:4px;">Se connecter à une session</div>
+    <p class="hint">
+      Tu as déjà un code de session ? Saisis-le pour rejoindre le vote.
+    </p>
+    <input id="joinCode" class="code-input" type="text" placeholder="CODE" maxlength="5"
+           autocapitalize="characters" autocomplete="off" inputmode="text" />
+    <button id="joinBtn" class="secondary">Rejoindre la session</button>
+    <p id="joinErr" class="hint" style="color:#8c2f27; display:none;"></p>
   </div>
 
   <script>
@@ -48,6 +60,21 @@
         err.style.display = "block";
         btn.disabled = false;
       }
+    });
+    document.getElementById("joinBtn").addEventListener("click", () => {
+      const joinErr = document.getElementById("joinErr");
+      const code = document.getElementById("joinCode").value.trim().toUpperCase();
+      joinErr.style.display = "none";
+      if (!code) {
+        joinErr.textContent = "Saisis d'abord un code de session.";
+        joinErr.style.display = "block";
+        return;
+      }
+      window.location.href = voteUrlForCode(code);
+    });
+
+    document.getElementById("joinCode").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("joinBtn").click();
     });
   </script>
 </body>
