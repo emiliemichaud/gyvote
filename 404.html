@@ -15,6 +15,8 @@
     <h1 id="title">Vote</h1>
   </div>
 
+  <p id="expiryNote" class="hint" style="display:none; margin-bottom:14px;"></p>
+
   <div id="app"></div>
 
   <script>
@@ -135,6 +137,7 @@
         .on("postgres_changes", { event: "DELETE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, () => {
           // La session a été clôturée et supprimée automatiquement (15h écoulées).
           session = null;
+          document.getElementById("expiryNote").style.display = "none";
           app.innerHTML = `<div class="card center hint">Cette session a été clôturée automatiquement (15h écoulées) et n'est plus disponible.</div>`;
         })
         .subscribe(async (status) => {
@@ -158,6 +161,12 @@
         return;
       }
       session = data;
+      const expiryNote = document.getElementById("expiryNote");
+      const expiry = formatExpiryDate(session);
+      if (expiry) {
+        expiryNote.textContent = `Cette session expirera automatiquement le ${expiry}.`;
+        expiryNote.style.display = "block";
+      }
       await checkHasVoted();
       if (session.status === "results") await fetchVotesForResults(); else render();
       subscribeRealtime();

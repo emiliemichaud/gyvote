@@ -69,6 +69,16 @@ function getSessionCodeFromLocation() {
   return null;
 }
 
+// Formate la date/heure à laquelle une session sera supprimée automatiquement
+// (created_at + 15h), au format "JJ.MM.AAAA à HH:MM".
+function formatExpiryDate(session) {
+  if (!session || !session.created_at) return null;
+  const created = new Date(session.created_at);
+  const expiry = new Date(created.getTime() + 15 * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(expiry.getDate())}.${pad(expiry.getMonth() + 1)}.${expiry.getFullYear()} à ${pad(expiry.getHours())}:${pad(expiry.getMinutes())}`;
+}
+
 function tallyCounts(votes) {
   const counts = { pour: 0, contre: 0, abstention: 0 };
   for (const v of votes) {
