@@ -1,0 +1,16 @@
+# ─── Cloudflare / Wrangler ───────────────────────────────────────
+.wrangler/
+
+# ─── Fichiers de dev local uniquement ───────────────────────────
+api-config.local.js
+api-config.prod.js
+
+# ─── macOS ──────────────────────────────────────────────────────
+.DS_Store
+
+# ─── Supabase (ancien système, plus utilisé) ─────────────────────
+supabase-config.js
+
+# ─── Node ────────────────────────────────────────────────────────
+node_modules/
+public/

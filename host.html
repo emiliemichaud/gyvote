@@ -5,9 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Vote — Administration</title>
 <link rel="stylesheet" href="style.css" />
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="vendor/qrcode.min.js"></script>
-<script src="supabase-config.js"></script>
+<script src="api-config.js"></script>
 <script src="app.js"></script>
 </head>
 <body>
@@ -27,7 +26,7 @@
     let session = null;
     let votes = [];
     let onlineCount = 0;
-    let sb;
+    let pollTimer = null;
 
     function statusLabel(s) {
       return { idle: "En attente", voting: "Vote en cours", stopped: "Vote clos", results: "Résultats affichés" }[s] || s;
@@ -104,10 +103,13 @@
     }
 
     async function updateStatus(status) {
-      const { error } = await sb.from("sessions").update({ status }).eq("id", session.id);
-      if (error) { alert("Erreur : " + error.message); return; }
-      session.status = status;
-      render();
+      try {
+        await apiPatch(`/api/session/${session.id}/status`, { status });
+        session.status = status;
+        render();
+      } catch (e) {
+        alert("Erreur : " + e.message);
+      }
     }
 
     async function closeSessionPermanently() {
@@ -116,18 +118,15 @@
       }
       const closeBtn = document.getElementById("closeBtn");
       if (closeBtn) closeBtn.disabled = true;
-
-      const { error: delVotesErr } = await sb.from("votes").delete().eq("session_id", session.id);
-      if (delVotesErr) { alert("Erreur : " + delVotesErr.message); if (closeBtn) closeBtn.disabled = false; return; }
-
-      const { error: delSessionErr } = await sb.from("sessions").delete().eq("id", session.id);
-      if (delSessionErr) { alert("Erreur : " + delSessionErr.message); if (closeBtn) closeBtn.disabled = false; return; }
-
-      if (resyncTimer) clearInterval(resyncTimer);
-      if (channel) sb.removeChannel(channel);
-      if (presenceChannel) sb.removeChannel(presenceChannel);
-      session = null;
-      app.innerHTML = `<div class="card center hint">Cette session a été clôturée et ses données ont été supprimées. <a href="index.html">Démarrer une nouvelle session</a></div>`;
+      try {
+        await apiDelete(`/api/session/${session.id}`);
+        stopWebSocket();
+        session = null;
+        app.innerHTML = `<div class="card center hint">Cette session a été clôturée et ses données ont été supprimées. <a href="index.html">Démarrer une nouvelle session</a></div>`;
+      } catch (e) {
+        alert("Erreur : " + e.message);
+        if (closeBtn) closeBtn.disabled = false;
+      }
     }
 
     async function resetSessionForNewItem() {
@@ -136,79 +135,73 @@
       }
       const newBtn = document.getElementById("newBtn");
       if (newBtn) newBtn.disabled = true;
-
-      const { error: delErr } = await sb.from("votes").delete().eq("session_id", session.id);
-      if (delErr) { alert("Erreur : " + delErr.message); if (newBtn) newBtn.disabled = false; return; }
-
-      const { error: updErr } = await sb.from("sessions").update({ status: "idle" }).eq("id", session.id);
-      if (updErr) { alert("Erreur : " + updErr.message); if (newBtn) newBtn.disabled = false; return; }
-
-      session.status = "idle";
-      votes = [];
-      render();
-    }
-
-    // Le compteur affiché n'est jamais incrémenté "à la main" en JS : on relit
-    // toujours l'ensemble des lignes réellement présentes en base (COUNT côté
-    // source de vérité), pour rester correct même sous forte concurrence.
-    async function resyncVotes() {
-      const { data, error } = await sb.from("votes").select("choice").eq("session_id", session.id);
-      if (!error) {
-        votes = data || [];
+      try {
+        await apiDelete(`/api/votes/${session.id}`);
+        await apiPatch(`/api/session/${session.id}/status`, { status: "idle" });
+        session.status = "idle";
+        votes = [];
         render();
+      } catch (e) {
+        alert("Erreur : " + e.message);
+        if (newBtn) newBtn.disabled = false;
       }
     }
 
-    let channel = null;
-    let presenceChannel = null;
-    let resyncTimer = null;
-    function subscribeRealtime() {
-      if (channel) sb.removeChannel(channel);
-      if (presenceChannel) sb.removeChannel(presenceChannel);
-      if (resyncTimer) clearInterval(resyncTimer);
-      // Le temps réel donne l'affichage instantané...
-      channel = sb.channel("votes-host-" + session.id)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "votes", filter: `session_id=eq.${session.id}` }, () => {
-          resyncVotes();
-        })
-        .on("postgres_changes", { event: "DELETE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, () => {
-          // La session a été clôturée et supprimée automatiquement (15h écoulées).
-          if (resyncTimer) clearInterval(resyncTimer);
-          session = null;
-          app.innerHTML = `<div class="card center hint">Cette session a été clôturée automatiquement (15h écoulées) et ses données ont été supprimées. <a href="index.html">Démarrer une nouvelle session</a></div>`;
-        })
-        .subscribe();
-      // ...et un recomptage périodique sert de filet de sécurité si un
-      // événement temps réel venait à être manqué pendant un pic de votes.
-      resyncTimer = setInterval(resyncVotes, 4000);
+    // ─── WebSockets (remplace Polling) ───────────────────────────────
+    let ws = null;
 
-      // Canal de présence : chaque votant sur vote.html "s'annonce" sur ce
-      // même canal (session-<id>). On ne fait que l'écouter ici, sans s'y
-      // annoncer soi-même, pour compter uniquement les participants connectés.
-      presenceChannel = sb.channel("session-" + session.id, { config: { presence: {} } })
-        .on("presence", { event: "sync" }, () => {
-          onlineCount = Object.keys(presenceChannel.presenceState()).length;
+    function startWebSocket() {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = getApiBase().replace(/^https?:\/\//, "") || window.location.host;
+      const wsUrl = `${protocol}//${host}/api/session/${session.code}/ws?role=host`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "state") {
+          session = data.session;
+          votes = data.votes;
+          onlineCount = data.onlineCount;
           render();
-        })
-        .subscribe();
+        }
+      };
+
+      ws.onclose = () => {
+        // Reconnexion automatique si la session n'est pas explicitement fermée
+        if (session) {
+          setTimeout(startWebSocket, 2000);
+        }
+      };
     }
+
+    function stopWebSocket() {
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+        ws = null;
+      }
+    }
+
+    // ─── Initialisation ─────────────────────────────────────────────────────
 
     async function init() {
       if (!code || !secret) {
         app.innerHTML = `<div class="card center hint">Lien invalide. <a href="index.html">Démarrer une nouvelle session</a></div>`;
         return;
       }
-      sb = getSupabaseClient();
-      const { data, error } = await sb.from("sessions").select("*").eq("code", code).single();
-      if (error || !data || data.host_secret !== secret) {
-        app.innerHTML = `<div class="card center hint">Lien invalide ou expiré. <a href="index.html">Démarrer une nouvelle session</a></div>`;
-        return;
+      try {
+        session = await apiGet(`/api/session/${code}`);
+        if (!session || session.host_secret !== secret) {
+          app.innerHTML = `<div class="card center hint">Lien invalide ou expiré. <a href="index.html">Démarrer une nouvelle session</a></div>`;
+          return;
+        }
+        votes = await apiGet(`/api/votes/${session.id}`);
+        render();
+        startWebSocket();
+      } catch (e) {
+        app.innerHTML = `<div class="card center hint">Erreur : ${e.message}. <a href="index.html">Retour à l'accueil</a></div>`;
       }
-      session = data;
-      const { data: existingVotes } = await sb.from("votes").select("choice").eq("session_id", session.id);
-      votes = existingVotes || [];
-      subscribeRealtime();
-      render();
     }
 
     init();
