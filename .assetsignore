@@ -1,0 +1,13 @@
+# Fichiers à ne PAS exposer publiquement via les assets Cloudflare
+worker/
+.wrangler/
+.git/
+node_modules/
+schema.sql
+schema-gyvote.sql
+cleanup-expired-sessions.sql
+wrangler.toml
+dev.sh
+api-config.local.js
+api-config.prod.js
+.DS_Store

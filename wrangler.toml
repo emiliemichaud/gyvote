@@ -1,0 +1,25 @@
+name = "gyvote-api"
+main = "worker/index.js"
+compatibility_date = "2025-01-01"
+
+# ─── Assets statiques : le Worker sert aussi le frontend ───────────────────
+# Un seul serveur (port 8787) pour tout : API + HTML/CSS/JS
+# Plus besoin de "npx serve" en parallèle.
+[assets]
+directory = "./public"
+binding = "ASSETS"                # rend env.ASSETS disponible dans le Worker
+not_found_handling = "404-page"   # sert 404.html pour /CODE (lien court)
+
+# ─── Dev local : port fixe ──────────────────────────────────────────────────
+[dev]
+port = 8787
+
+# ─── Cron Triggers ──────────────────────────────────────────────────────────
+[triggers]
+crons = ["*/15 * * * *"]
+
+# ─── Liaison D1 ─────────────────────────────────────────────────────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "gyvote-db"
+database_id = "d962ba81-3ce2-4dec-87b0-2b8b974a0630" #Il faut le modifier avec l'id généré par cloudflare lors de la création de la base d1
