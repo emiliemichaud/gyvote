@@ -1,0 +1,63 @@
+name: Supabase Keepalive
+
+# Empêche Supabase de mettre le projet en pause pour inactivité
+# Ce workflow tourne tous les jours, mais ne "ping" réellement la base
+# qu'environ 3 jours sur 7 (tirage aléatoire), à une heure elle-même
+# aléatoire dans la journée 
+#
+# Prérequis :
+# 1. Dans Supabase → SQL Editor, exécuter :
+#    create table if not exists keepalive (
+#      id int primary key,
+#      pinged_at timestamptz default now()
+#    );
+#    insert into keepalive (id, pinged_at) values (1, now())
+#      on conflict (id) do nothing;
+#
+# 2. Dans le repo GitHub → Settings → Secrets and variables → Actions,
+#    ajouter deux secrets :
+#      SUPABASE_URL              (ex: https://xxxxx.supabase.co)
+#      SUPABASE_SERVICE_ROLE_KEY (clé "service_role", PAS la clé "anon")
+#
+#    La clé service_role se trouve dans Supabase → Project Settings → API.
+
+on:
+  schedule:
+    - cron: "0 8 * * *" # tous les jours à 08:00 UTC (le job décide ensuite s'il agit vraiment)
+  workflow_dispatch: {} # permet de le lancer manuellement depuis l'onglet Actions, pour tester
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tirage aléatoire (~3 chances sur 7 de s'exécuter aujourd'hui)
+        id: gate
+        run: |
+          R=$((RANDOM % 7))
+          if [ "$R" -lt 3 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Aujourd'hui : pas d'action (tirage=$R)."
+          fi
+
+      - name: Délai aléatoire (0 à 3h) pour ne pas tomber pile à 08:00
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          DELAY=$(( (RANDOM % 180) * 60 ))
+          echo "Attente de $((DELAY / 60)) minutes avant le ping."
+          sleep "$DELAY"
+
+      - name: Ping Supabase (upsert d'une ligne de la table keepalive)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          curl -sS -X POST "${SUPABASE_URL}/rest/v1/keepalive?on_conflict=id" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: resolution=merge-duplicates" \
+            -d "{\"id\":1,\"pinged_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+          echo "Ping envoyé."
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
