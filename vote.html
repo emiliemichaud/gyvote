@@ -116,70 +116,55 @@
       }
     }
 
-    // ─── Polling Adaptatif (remplace Supabase Realtime) ─────────────────────
-    // Resynchronise le statut de façon dynamique pour économiser les requêtes.
+    // ─── WebSockets (remplace Polling Adaptatif) ─────────────────────────────
+    let ws = null;
 
-    async function poll() {
-      try {
-        const previousStatus = session ? session.status : null;
-        const newSession = await apiGet(`/api/session/${code.toUpperCase()}`);
+    function startWebSocket() {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = getApiBase().replace(/^https?:\/\//, "") || window.location.host;
+      const wsUrl = `${protocol}//${host}/api/session/${session.code}/ws?voter_id=${voterId}`;
 
-        // Nouveau tour de vote lancé par l'organisateur
-        if (previousStatus !== "idle" && newSession.status === "idle") {
-          hasVoted = false;
-          votes = [];
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "state") {
+          const previousStatus = session ? session.status : null;
+          const newSession = data.session;
+          
+          if (previousStatus !== "idle" && newSession.status === "idle") {
+            hasVoted = false;
+          }
+          
+          session = newSession;
+          votes = data.votes;
+          
+          // Vérifier si on a déjà voté dans ce lot
+          if (!hasVoted) {
+            hasVoted = votes.some(v => v.voter_id === voterId);
+          }
+          
+          render();
         }
+      };
 
-        // Chargement des résultats une seule fois quand on passe à l'état "results"
-        if (newSession.status === "results" && previousStatus !== "results") {
-          votes = await apiGet(`/api/votes/${newSession.id}`);
+      ws.onclose = () => {
+        // Reconnexion automatique si la session n'est pas explicitement fermée
+        if (session) {
+          setTimeout(startWebSocket, 2000);
         }
-
-        // On met à jour la session localement qu'une fois toutes les données chargées
-        session = newSession;
-
-        render();
-      } catch (e) {
-        // Session expirée ou supprimée
-        if (e.message && e.message.includes("introuvable")) {
-          stopPolling();
-          session = null;
-          document.getElementById("expiryNote").style.display = "none";
-          app.innerHTML = `<div class="card center hint">Cette session a été clôturée automatiquement (15h écoulées) et n'est plus disponible.</div>`;
-          return; // Arrêt complet
-        }
-      }
-
-      // Planifie le prochain appel avec un délai adapté au statut
-      if (session) {
-        let interval = 10000; // Par défaut : 10s (statuts idle ou stopped)
-        if (session.status === "voting") interval = 3000; // 3s : très réactif pendant le vote
-        if (session.status === "results") interval = 15000; // 15s : ralenti une fois les résultats affichés
-        pollTimer = setTimeout(poll, interval);
-      }
+      };
     }
 
-    // ─── Enregistrement de présence ──────────────────────────────────────────
-    // Signale au serveur que ce votant s'est connecté (une seule fois).
-    // Permet à l'animateur de voir le nombre total de participants ayant rejoint.
-
-    async function registerPresence() {
-      if (!session) return;
-      try {
-        await apiPost(`/api/presence/${session.id}`, { voter_id: voterId });
-      } catch (_) {
-        // Erreur réseau : on ignore
+    function stopWebSocket() {
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+        ws = null;
       }
     }
 
-    function startPolling() {
-      stopPolling();
-      pollTimer = setTimeout(poll, 3000); // 1er appel après init
-    }
 
-    function stopPolling() {
-      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-    }
 
     // ─── Initialisation ─────────────────────────────────────────────────────
 
@@ -213,8 +198,7 @@
         }
 
         render();
-        startPolling();
-        registerPresence();
+        startWebSocket();
       } catch (e) {
         app.innerHTML = `<div class="card center hint">Session introuvable. Vérifiez le code : <strong>${code}</strong></div>`;
       }

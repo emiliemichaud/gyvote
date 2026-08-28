@@ -19,9 +19,6 @@
   <div id="app"></div>
 
   <script>
-    // Ce fichier est servi par Cloudflare Workers / wrangler dev quand une
-    // URL de type /CODE n'est pas trouvée dans les assets statiques.
-    // Il récupère le code depuis le chemin et affiche la page de vote.
     const code = getSessionCodeFromLocation();
     const app = document.getElementById("app");
 
@@ -36,7 +33,10 @@
     function render() {
       if (!session) { app.innerHTML = `<div class="card center hint">Chargement…</div>`; return; }
 
-      if (session.status === "results") { renderResults(); return; }
+      if (session.status === "results") {
+        renderResults();
+        return;
+      }
 
       if (session.status === "voting" && !hasVoted) {
         app.innerHTML = `
@@ -61,18 +61,18 @@
         return;
       }
 
-      const banner = session.status === "stopped"
-        ? `<div class="status-banner stopped">Vote clos</div>`
-        : `<div class="status-banner">${statusLabel(session.status)}</div>`;
+      const banner = session.status === "stopped" ? `<div class="status-banner stopped">Vote clos</div>` : `<div class="status-banner">${statusLabel(session.status)}</div>`;
       app.innerHTML = `<div class="card center">${banner}<p class="locked-msg" style="margin-top:0;">${session.status === "stopped" ? "Les votes sont clos." : "En attente du début du vote…"}</p></div>`;
     }
 
     function renderResults() {
       const counts = tallyCounts(votes);
       const total = counts.pour + counts.contre + counts.abstention;
-      let verdict = "Égalité", verdictClass = "";
+      let verdict = "Égalité";
+      let verdictClass = "";
       if (counts.pour > counts.contre) { verdict = "Résultat : Pour"; verdictClass = "pour"; }
       else if (counts.contre > counts.pour) { verdict = "Résultat : Contre"; verdictClass = "contre"; }
+
       app.innerHTML = `
         <div class="card">
           <div class="verdict ${verdictClass}">${verdict}</div>
@@ -82,12 +82,17 @@
             ${tallyRow("Contre", "contre", counts.contre, total)}
             ${tallyRow("Abstention", "abst", counts.abstention, total)}
           </div>
-        </div>`;
+        </div>
+      `;
     }
 
     function tallyRow(label, cls, count, total) {
       const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-      return `<div class="label ${cls}">${label}</div><div class="count">${count}</div><div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>`;
+      return `
+        <div class="label ${cls}">${label}</div>
+        <div class="count">${count}</div>
+        <div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
+      `;
     }
 
     async function castVote(choice) {
@@ -99,44 +104,69 @@
         hasVoted = true;
         render();
       } catch (e) {
-        if (e.message && e.message.includes("Déjà voté")) { hasVoted = true; render(); }
-        else { alert("Erreur : " + e.message); app.querySelectorAll(".choice-btn").forEach((b) => (b.disabled = false)); }
-      } finally { voting = false; }
-    }
-
-    async function poll() {
-      try {
-        const newSession = await apiGet(`/api/session/${code.toUpperCase()}`);
-        const previousStatus = session ? session.status : null;
-        session = newSession;
-        if (previousStatus !== "idle" && session.status === "idle") { hasVoted = false; votes = []; }
-        if (session.status === "results") votes = await apiGet(`/api/votes/${session.id}`);
-        render();
-      } catch (e) {
-        if (e.message && e.message.includes("introuvable")) {
-          stopPolling();
-          session = null;
-          document.getElementById("expiryNote").style.display = "none";
-          app.innerHTML = `<div class="card center hint">Cette session a été clôturée automatiquement (15h écoulées) et n'est plus disponible.</div>`;
+        if (e.message && e.message.includes("Déjà voté")) {
+          hasVoted = true;
+          render();
+        } else {
+          alert("Erreur : " + e.message);
+          app.querySelectorAll(".choice-btn").forEach((b) => (b.disabled = false));
         }
+      } finally {
+        voting = false;
       }
     }
 
-    function startPolling() { if (pollTimer) clearInterval(pollTimer); pollTimer = setInterval(poll, 3000); }
-    function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } stopHeartbeat(); }
+    // ─── WebSockets (remplace Polling Adaptatif) ─────────────────────────────
+    let ws = null;
 
-    // Heartbeat de présence : signale que ce votant est actif (toutes les 10s)
-    let heartbeatTimer = null;
-    async function sendHeartbeat() {
-      if (!session) return;
-      try { await apiPost(`/api/presence/${session.id}`, { voter_id: voterId }); } catch (_) {}
+    function startWebSocket() {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = getApiBase().replace(/^https?:\/\//, "") || window.location.host;
+      const wsUrl = `${protocol}//${host}/api/session/${session.code}/ws?voter_id=${voterId}`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "state") {
+          const previousStatus = session ? session.status : null;
+          const newSession = data.session;
+          
+          if (previousStatus !== "idle" && newSession.status === "idle") {
+            hasVoted = false;
+          }
+          
+          session = newSession;
+          votes = data.votes;
+          
+          // Vérifier si on a déjà voté dans ce lot
+          if (!hasVoted) {
+            hasVoted = votes.some(v => v.voter_id === voterId);
+          }
+          
+          render();
+        }
+      };
+
+      ws.onclose = () => {
+        // Reconnexion automatique si la session n'est pas explicitement fermée
+        if (session) {
+          setTimeout(startWebSocket, 2000);
+        }
+      };
     }
-    function startHeartbeat() {
-      if (heartbeatTimer) clearInterval(heartbeatTimer);
-      sendHeartbeat();
-      heartbeatTimer = setInterval(sendHeartbeat, 10000);
+
+    function stopWebSocket() {
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+        ws = null;
+      }
     }
-    function stopHeartbeat() { if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; } }
+
+
+
+    // ─── Initialisation ─────────────────────────────────────────────────────
 
     async function init() {
       if (!code) {
@@ -145,17 +175,30 @@
       }
       try {
         session = await apiGet(`/api/session/${code.toUpperCase()}`);
+        if (!session) {
+          app.innerHTML = `<div class="card center hint">Session introuvable. Vérifiez le code : <strong>${code}</strong></div>`;
+          return;
+        }
+
         const expiryNote = document.getElementById("expiryNote");
         const expiry = formatExpiryDate(session);
-        if (expiry) { expiryNote.textContent = `Cette session expirera automatiquement le ${expiry}.`; expiryNote.style.display = "block"; }
+        if (expiry) {
+          expiryNote.textContent = `Cette session expirera automatiquement le ${expiry}.`;
+          expiryNote.style.display = "block";
+        }
+
+        // Vérifier si on a déjà voté dans cette session
         try {
           const myVotes = await apiGet(`/api/votes/${session.id}`);
           hasVoted = myVotes.some(v => v.voter_id === voterId);
         } catch(_) {}
-        if (session.status === "results") votes = await apiGet(`/api/votes/${session.id}`);
+
+        if (session.status === "results") {
+          votes = await apiGet(`/api/votes/${session.id}`);
+        }
+
         render();
-        startPolling();
-        startHeartbeat();
+        startWebSocket();
       } catch (e) {
         app.innerHTML = `<div class="card center hint">Session introuvable. Vérifiez le code : <strong>${code}</strong></div>`;
       }

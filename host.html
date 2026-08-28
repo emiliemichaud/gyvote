@@ -120,7 +120,7 @@
       if (closeBtn) closeBtn.disabled = true;
       try {
         await apiDelete(`/api/session/${session.id}`);
-        stopPolling();
+        stopWebSocket();
         session = null;
         app.innerHTML = `<div class="card center hint">Cette session a été clôturée et ses données ont été supprimées. <a href="index.html">Démarrer une nouvelle session</a></div>`;
       } catch (e) {
@@ -147,42 +147,40 @@
       }
     }
 
-    // ─── Polling (remplace Supabase Realtime) ───────────────────────────────
-    // Resynchronise les votes et le statut toutes les 3 secondes.
+    // ─── WebSockets (remplace Polling) ───────────────────────────────
+    let ws = null;
 
-    async function poll() {
-      try {
-        // Resync votes
-        const newVotes = await apiGet(`/api/votes/${session.id}`);
-        votes = newVotes;
+    function startWebSocket() {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = getApiBase().replace(/^https?:\/\//, "") || window.location.host;
+      const wsUrl = `${protocol}//${host}/api/session/${session.code}/ws?role=host`;
 
-        // Resync statut de session (détecte expiration et changements externes)
-        const newSession = await apiGet(`/api/session/${session.code}`);
-        session = newSession;
+      ws = new WebSocket(wsUrl);
 
-        // Resync nombre de participants connectés (présence)
-        const presence = await apiGet(`/api/presence/${session.id}`);
-        onlineCount = presence.count ?? 0;
-
-        render();
-      } catch (e) {
-        // Session expirée ou supprimée
-        if (e.message && e.message.includes("introuvable")) {
-          stopPolling();
-          session = null;
-          app.innerHTML = `<div class="card center hint">Cette session a été clôturée automatiquement (15h écoulées) et ses données ont été supprimées. <a href="index.html">Démarrer une nouvelle session</a></div>`;
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "state") {
+          session = data.session;
+          votes = data.votes;
+          onlineCount = data.onlineCount;
+          render();
         }
-        // Autres erreurs réseau : on ignore et on réessaie au prochain tick
+      };
+
+      ws.onclose = () => {
+        // Reconnexion automatique si la session n'est pas explicitement fermée
+        if (session) {
+          setTimeout(startWebSocket, 2000);
+        }
+      };
+    }
+
+    function stopWebSocket() {
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+        ws = null;
       }
-    }
-
-    function startPolling() {
-      if (pollTimer) clearInterval(pollTimer);
-      pollTimer = setInterval(poll, 3000);
-    }
-
-    function stopPolling() {
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     }
 
     // ─── Initialisation ─────────────────────────────────────────────────────
@@ -200,7 +198,7 @@
         }
         votes = await apiGet(`/api/votes/${session.id}`);
         render();
-        startPolling();
+        startWebSocket();
       } catch (e) {
         app.innerHTML = `<div class="card center hint">Erreur : ${e.message}. <a href="index.html">Retour à l'accueil</a></div>`;
       }

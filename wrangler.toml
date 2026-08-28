@@ -23,3 +23,12 @@ crons = ["*/15 * * * *"]
 binding = "DB"
 database_name = "gyvote-db"
 database_id = "d962ba81-3ce2-4dec-87b0-2b8b974a0630" #Il faut le modifier avec l'id généré par cloudflare lors de la création de la base d1
+
+# ─── Durable Objects ────────────────────────────────────────────────────────
+[[durable_objects.bindings]]
+name = "SESSION_DO"
+class_name = "SessionDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SessionDO"]
