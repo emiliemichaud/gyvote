@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Vote — Accueil</title>
 <link rel="stylesheet" href="style.css" />
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="supabase-config.js"></script>
+<script src="api-config.js"></script>
 <script src="app.js"></script>
 </head>
 <body>
@@ -37,33 +36,25 @@
     <p id="err" class="hint" style="color:#8c2f27; display:none;"></p>
   </div>
 
- 
-
   <script>
     document.getElementById("createBtn").addEventListener("click", async () => {
       const btn = document.getElementById("createBtn");
-      const err = document.getElementById("err");
+      const errEl = document.getElementById("err");
       btn.disabled = true;
-      err.style.display = "none";
+      errEl.style.display = "none";
       try {
-        const sb = getSupabaseClient();
-        const code = generateSessionCode();
-        const { data, error } = await sb
-          .from("sessions")
-          .insert({ code })
-          .select("id, code, host_secret")
-          .single();
-        if (error) throw error;
+        const data = await apiPost("/api/session", {});
         const url = new URL("host.html", window.location.href);
         url.searchParams.set("s", data.code);
         url.searchParams.set("t", data.host_secret);
         window.location.href = url.toString();
       } catch (e) {
-        err.textContent = "Erreur : " + e.message;
-        err.style.display = "block";
+        errEl.textContent = "Erreur : " + e.message;
+        errEl.style.display = "block";
         btn.disabled = false;
       }
     });
+
     document.getElementById("joinBtn").addEventListener("click", () => {
       const joinErr = document.getElementById("joinErr");
       const code = document.getElementById("joinCode").value.trim().toUpperCase();

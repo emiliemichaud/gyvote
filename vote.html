@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Vote</title>
 <link rel="stylesheet" href="style.css" />
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="supabase-config.js"></script>
+<script src="api-config.js"></script>
 <script src="app.js"></script>
 </head>
 <body>
@@ -23,7 +22,8 @@
     const code = getSessionCodeFromLocation();
     const app = document.getElementById("app");
 
-    let sb, session, hasVoted = false, votes = [], voting = false;
+    let session = null, hasVoted = false, votes = [], voting = false;
+    let pollTimer = null;
     const voterId = getVoterId();
 
     function statusLabel(s) {
@@ -99,87 +99,126 @@
       if (voting) return;
       voting = true;
       app.querySelectorAll(".choice-btn").forEach((b) => (b.disabled = true));
-      const { error } = await sb.from("votes").insert({ session_id: session.id, voter_id: voterId, choice });
-      voting = false;
-      if (error) {
-        if (error.code === "23505") {
-          hasVoted = true; // déjà voté (double clic ou autre onglet)
+      try {
+        await apiPost("/api/vote", { session_id: session.id, voter_id: voterId, choice });
+        hasVoted = true;
+        render();
+      } catch (e) {
+        if (e.message && e.message.includes("Déjà voté")) {
+          hasVoted = true;
           render();
         } else {
-          alert("Erreur : " + error.message);
+          alert("Erreur : " + e.message);
           app.querySelectorAll(".choice-btn").forEach((b) => (b.disabled = false));
         }
-        return;
+      } finally {
+        voting = false;
       }
-      hasVoted = true;
-      render();
     }
 
-    async function fetchVotesForResults() {
-      const { data } = await sb.from("votes").select("choice").eq("session_id", session.id);
-      votes = data || [];
-      render();
-    }
+    // ─── Polling (remplace Supabase Realtime) ───────────────────────────────
+    // Resynchronise le statut et (si résultats) les votes toutes les 3 secondes.
 
-    async function checkHasVoted() {
-      const { data } = await sb.from("votes").select("id").eq("session_id", session.id).eq("voter_id", voterId).maybeSingle();
-      hasVoted = !!data;
-    }
+    async function poll() {
+      try {
+        const newSession = await apiGet(`/api/session/${code.toUpperCase()}`);
+        const previousStatus = session ? session.status : null;
+        session = newSession;
 
-    function subscribeRealtime() {
-      const channel = sb.channel("session-" + session.id, { config: { presence: { key: voterId } } });
-      channel
-        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, async (payload) => {
-          const previousStatus = session.status;
-          session.status = payload.new.status;
-          if (session.status === "results") {
-            fetchVotesForResults();
-          } else if (session.status === "idle" && previousStatus !== "idle") {
-            // L'organisateur a lancé un nouveau tour de vote dans la même
-            // session : les votes précédents ont été effacés côté serveur,
-            // donc on revérifie si on a déjà voté (normalement plus le cas).
-            await checkHasVoted();
-            render();
-          } else {
-            render();
-          }
-        })
-        .on("postgres_changes", { event: "DELETE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, () => {
-          // La session a été clôturée et supprimée automatiquement (15h écoulées).
+        // Nouveau tour de vote lancé par l'organisateur
+        if (previousStatus !== "idle" && session.status === "idle") {
+          hasVoted = false;
+          votes = [];
+        }
+
+        // Chargement des résultats quand affichés
+        if (session.status === "results") {
+          votes = await apiGet(`/api/votes/${session.id}`);
+        }
+
+        render();
+      } catch (e) {
+        // Session expirée ou supprimée
+        if (e.message && e.message.includes("introuvable")) {
+          stopPolling();
           session = null;
           document.getElementById("expiryNote").style.display = "none";
           app.innerHTML = `<div class="card center hint">Cette session a été clôturée automatiquement (15h écoulées) et n'est plus disponible.</div>`;
-        })
-        .subscribe(async (status) => {
-          if (status === "SUBSCRIBED") {
-            // Signale la présence de ce votant sur le canal de la session,
-            // pour que host.html puisse afficher le nombre de connexions en direct.
-            await channel.track({ online_at: new Date().toISOString() });
-          }
-        });
+        }
+      }
     }
+
+    // ─── Heartbeat de présence ───────────────────────────────────────────────
+    // Signale au serveur que ce votant est connecté (toutes les 10 secondes).
+    // Permet à l'animateur de voir le nombre de participants en direct.
+    let heartbeatTimer = null;
+
+    async function sendHeartbeat() {
+      if (!session) return;
+      try {
+        await apiPost(`/api/presence/${session.id}`, { voter_id: voterId });
+      } catch (_) {
+        // Erreur réseau : on ignore, le prochain heartbeat réessaiera
+      }
+    }
+
+    function startHeartbeat() {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      sendHeartbeat(); // envoi immédiat à l'arrivée
+      heartbeatTimer = setInterval(sendHeartbeat, 10000);
+    }
+
+    function stopHeartbeat() {
+      if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+    }
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(poll, 3000);
+    }
+
+    function stopPolling() {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      stopHeartbeat();
+    }
+
+    // ─── Initialisation ─────────────────────────────────────────────────────
 
     async function init() {
       if (!code) {
         app.innerHTML = `<div class="card center hint">Aucun code de session fourni.</div>`;
         return;
       }
-      sb = getSupabaseClient();
-      const { data, error } = await sb.from("sessions").select("*").eq("code", code.toUpperCase()).single();
-      if (error || !data) {
+      try {
+        session = await apiGet(`/api/session/${code.toUpperCase()}`);
+        if (!session) {
+          app.innerHTML = `<div class="card center hint">Session introuvable. Vérifiez le code : <strong>${code}</strong></div>`;
+          return;
+        }
+
+        const expiryNote = document.getElementById("expiryNote");
+        const expiry = formatExpiryDate(session);
+        if (expiry) {
+          expiryNote.textContent = `Cette session expirera automatiquement le ${expiry}.`;
+          expiryNote.style.display = "block";
+        }
+
+        // Vérifier si on a déjà voté dans cette session
+        try {
+          const myVotes = await apiGet(`/api/votes/${session.id}`);
+          hasVoted = myVotes.some(v => v.voter_id === voterId);
+        } catch(_) {}
+
+        if (session.status === "results") {
+          votes = await apiGet(`/api/votes/${session.id}`);
+        }
+
+        render();
+        startPolling();
+        startHeartbeat();
+      } catch (e) {
         app.innerHTML = `<div class="card center hint">Session introuvable. Vérifiez le code : <strong>${code}</strong></div>`;
-        return;
       }
-      session = data;
-      const expiryNote = document.getElementById("expiryNote");
-      const expiry = formatExpiryDate(session);
-      if (expiry) {
-        expiryNote.textContent = `Cette session expirera automatiquement le ${expiry}.`;
-        expiryNote.style.display = "block";
-      }
-      await checkHasVoted();
-      if (session.status === "results") await fetchVotesForResults(); else render();
-      subscribeRealtime();
     }
 
     init();
