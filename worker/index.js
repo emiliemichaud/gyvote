@@ -127,15 +127,14 @@ export default {
         return json({ ok: true }, 200, origin);
       }
 
-      // ── DELETE /api/session/:id ── Supprimer une session et ses votes ────
+      // ── DELETE /api/session/:id ── Supprimer une session et ses données ────
       const matchSession = path.match(
         /^\/api\/session\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
       );
       if (method === "DELETE" && matchSession) {
         const id = matchSession[1];
-        // La contrainte ON DELETE CASCADE dans D1 supprime aussi les votes,
-        // mais on les supprime explicitement pour garantir la compatibilité.
         await env.DB.prepare("DELETE FROM votes WHERE session_id = ?").bind(id).run();
+        await env.DB.prepare("DELETE FROM presence WHERE session_id = ?").bind(id).run();
         await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(id).run();
         return json({ ok: true }, 200, origin);
       }
@@ -211,14 +210,13 @@ export default {
         return json({ ok: true }, 200, origin);
       }
 
-      // ── GET /api/presence/:sessionId ── Nombre de votants actifs ──────────
-      // Compte les votants ayant envoyé un heartbeat dans les 30 dernières secondes.
+      // ── GET /api/presence/:sessionId ── Nombre de participants ────────────
+      // Compte le nombre total de votants ayant rejoint la session.
       if (method === "GET" && matchPresence) {
         const sessionId = matchPresence[1];
-        const cutoff = new Date(Date.now() - 30 * 1000).toISOString();
         const row = await env.DB.prepare(
-          "SELECT COUNT(*) as count FROM presence WHERE session_id = ? AND last_seen >= ?"
-        ).bind(sessionId, cutoff).first();
+          "SELECT COUNT(*) as count FROM presence WHERE session_id = ?"
+        ).bind(sessionId).first();
         return json({ count: row?.count ?? 0 }, 200, origin);
       }
 
@@ -237,18 +235,16 @@ export default {
   // ─── Cron : nettoyage des sessions et présences expirées (toutes les 15 min)
   async scheduled(event, env, ctx) {
     const cutoff15h = new Date(Date.now() - 15 * 60 * 60 * 1000).toISOString();
-    const cutoff1min = new Date(Date.now() - 60 * 1000).toISOString();
-    // Supprimer les votes et sessions de plus de 15h
+    // Supprimer les votes, présences et sessions de plus de 15h
     await env.DB.prepare(
       "DELETE FROM votes WHERE session_id IN (SELECT id FROM sessions WHERE created_at < ?)"
     ).bind(cutoff15h).run();
     await env.DB.prepare(
+      "DELETE FROM presence WHERE session_id IN (SELECT id FROM sessions WHERE created_at < ?)"
+    ).bind(cutoff15h).run();
+    await env.DB.prepare(
       "DELETE FROM sessions WHERE created_at < ?"
     ).bind(cutoff15h).run();
-    // Supprimer les entrées de présence périmées (plus d'1 minute sans heartbeat)
-    await env.DB.prepare(
-      "DELETE FROM presence WHERE last_seen < ?"
-    ).bind(cutoff1min).run();
     console.log("Cleanup effectué, cutoff sessions :", cutoff15h);
   },
 };
