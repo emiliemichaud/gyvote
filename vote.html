@@ -25,6 +25,10 @@
 
     let sb, session, hasVoted = false, votes = [], voting = false;
     const voterId = getVoterId();
+    const DEFAULT_VOTE_SECONDS = 10;
+    let countdownDeadline = null;
+    let countdownInterval = null;
+    let timerProlonged = false;
 
     function statusLabel(s) {
       return { idle: "En attente du début du vote", voting: "Vote en cours", stopped: "Vote clos", results: "Résultats" }[s] || s;
@@ -42,6 +46,7 @@
         app.innerHTML = `
           <div class="card center">
             <div class="status-banner voting">Vote en cours</div>
+            ${timerMarkup()}
             <p class="hint">Choisissez une option. Vous ne pourrez voter qu'une seule fois.</p>
           </div>
           <div class="choice-grid">
@@ -57,12 +62,50 @@
       }
 
       if (hasVoted && session.status !== "results") {
-        app.innerHTML = `<div class="card"><div class="locked-msg">✓ Votre vote a été enregistré.<br><span class="hint">${session.status === "voting" ? "En attente de la clôture du vote." : "Les votes sont clos."}</span></div></div>`;
+        app.innerHTML = `<div class="card center">${session.status === "voting" ? timerMarkup() : ""}<div class="locked-msg">✓ Votre vote a été enregistré.<br><span class="hint">${session.status === "voting" ? "En attente de la clôture du vote." : "Les votes sont clos."}</span></div></div>`;
         return;
       }
 
       const banner = session.status === "stopped" ? `<div class="status-banner stopped">Vote clos</div>` : `<div class="status-banner">${statusLabel(session.status)}</div>`;
       app.innerHTML = `<div class="card center">${banner}<p class="locked-msg" style="margin-top:0;">${session.status === "stopped" ? "Les votes sont clos." : "En attente du début du vote…"}</p></div>`;
+    }
+
+
+    function getRemainingSeconds() {
+      if (!countdownDeadline || timerProlonged) return 0;
+      return Math.max(0, Math.ceil((countdownDeadline - Date.now()) / 1000));
+    }
+
+    function timerMarkup() {
+      if (timerProlonged) return `<div class="vote-timer extended">Temps prolongé</div>`;
+      return `<div class="vote-timer"><span id="timerValue">${getRemainingSeconds()}</span> s</div>`;
+    }
+
+    function stopLocalTimer() {
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = null;
+      countdownDeadline = null;
+    }
+
+    function beginLocalTimer(seconds = DEFAULT_VOTE_SECONDS) {
+      if (countdownInterval) clearInterval(countdownInterval);
+      timerProlonged = false;
+      countdownDeadline = Date.now() + seconds * 1000;
+      countdownInterval = setInterval(() => {
+        const timerValue = document.getElementById("timerValue");
+        if (timerValue) timerValue.textContent = getRemainingSeconds();
+        if (getRemainingSeconds() <= 0) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
+      }, 200);
+      render();
+    }
+
+    function markTimerProlonged() {
+      stopLocalTimer();
+      timerProlonged = true;
+      render();
     }
 
     function renderResults() {
@@ -132,6 +175,12 @@
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, async (payload) => {
           const previousStatus = session.status;
           session.status = payload.new.status;
+          if (session.status === "voting" && previousStatus !== "voting") {
+            beginLocalTimer(DEFAULT_VOTE_SECONDS);
+          } else if (session.status !== "voting") {
+            stopLocalTimer();
+            timerProlonged = false;
+          }
           if (session.status === "results") {
             fetchVotesForResults();
           } else if (session.status === "idle" && previousStatus !== "idle") {
@@ -143,6 +192,12 @@
           } else {
             render();
           }
+        })
+        .on("broadcast", { event: "vote_timer" }, ({ payload }) => {
+          beginLocalTimer(payload?.seconds || DEFAULT_VOTE_SECONDS);
+        })
+        .on("broadcast", { event: "vote_timer_prolonged" }, () => {
+          markTimerProlonged();
         })
         .on("postgres_changes", { event: "DELETE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, () => {
           // La session a été clôturée et supprimée automatiquement (15h écoulées).
@@ -178,7 +233,11 @@
         expiryNote.style.display = "block";
       }
       await checkHasVoted();
-      if (session.status === "results") await fetchVotesForResults(); else render();
+      if (session.status === "results") await fetchVotesForResults();
+      else {
+        if (session.status === "voting") beginLocalTimer(DEFAULT_VOTE_SECONDS);
+        else render();
+      }
       subscribeRealtime();
     }
 

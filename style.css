@@ -281,3 +281,17 @@ button.danger:hover { background: var(--contre-bg); }
   padding: 40px 10px;
   color: var(--navy-2);
 }
+/* Compte à rebours du vote */
+.vote-timer {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--navy-2);
+  text-align: center;
+  margin: -4px 0 18px;
+}
+.vote-timer.extended {
+  font-size: 16px;
+  color: var(--pour);
+  letter-spacing: 0.04em;
+}

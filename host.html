@@ -29,6 +29,12 @@
     let onlineCount = 0;
     let sb;
 
+    const DEFAULT_VOTE_SECONDS = 10;
+    let countdownDeadline = null;
+    let countdownInterval = null;
+    let timerProlonged = false;
+    let autoStopInProgress = false;
+
     function statusLabel(s) {
       return { idle: "En attente", voting: "Vote en cours", stopped: "Vote clos", results: "Résultats affichés" }[s] || s;
     }
@@ -42,10 +48,15 @@
       const total = counts.pour + counts.contre + counts.abstention;
       const url = voteUrlForCode(session.code);
       const bannerClass = session.status === "voting" ? "voting" : session.status === "stopped" ? "stopped" : "";
+      const timerHtml = session.status === "voting"
+        ? `<div class="vote-timer ${timerProlonged ? "extended" : ""}">${timerProlonged ? "Temps prolongé" : `<span id="timerValue">${getRemainingSeconds()}</span> s`}</div>`
+        : "";
+      const resultHtml = session.status === "results" ? buildResultCard(counts, total) : "";
 
       app.innerHTML = `
         <div class="card center">
           <div class="status-banner ${bannerClass}">${statusLabel(session.status)}</div>
+          ${timerHtml}
           <div class="code-display">${session.code}</div>
           <div class="qrcode-wrap"><div id="qrcode"></div></div>
           <div class="url-line">${url}</div>
@@ -56,11 +67,14 @@
         <div class="card">
           <div class="stack">
             <button id="startBtn" ${session.status === "voting" ? "disabled" : ""}>Démarrer les votes</button>
+            <button id="extendBtn" class="secondary" ${session.status === "voting" && !timerProlonged ? "" : "disabled"}>Prolonger</button>
             <button id="stopBtn" ${session.status === "voting" ? "" : "disabled"}>Arrêter les votes</button>
             <button id="resultsBtn" ${total === 0 ? "disabled" : ""}>Afficher les résultats des votes</button>
             <button id="newBtn" class="secondary">Nouveau vote (même session)</button>
           </div>
         </div>
+
+        ${resultHtml}
 
         <div class="card">
           <div class="eyebrow center" style="display:block; margin-bottom:6px;">Dépouillement en direct</div>
@@ -87,11 +101,92 @@
         colorLight: "#ffffff",
       });
 
-      document.getElementById("startBtn").onclick = () => updateStatus("voting");
+      document.getElementById("startBtn").onclick = startVoting;
+      document.getElementById("extendBtn").onclick = prolongVoting;
       document.getElementById("stopBtn").onclick = () => updateStatus("stopped");
       document.getElementById("resultsBtn").onclick = () => updateStatus("results");
       document.getElementById("newBtn").onclick = resetSessionForNewItem;
       document.getElementById("closeBtn").onclick = closeSessionPermanently;
+    }
+
+
+    function buildResultCard(counts, total) {
+      let verdict = "Égalité";
+      let verdictClass = "";
+      if (counts.pour > counts.contre) { verdict = "Résultat : Pour"; verdictClass = "pour"; }
+      else if (counts.contre > counts.pour) { verdict = "Résultat : Contre"; verdictClass = "contre"; }
+
+      return `
+        <div class="card">
+          <div class="verdict ${verdictClass}">${verdict}</div>
+          <div class="turnout">${total} votant${total > 1 ? "s" : ""}</div>
+          <div class="tally">
+            ${tallyRow("Pour", "pour", counts.pour, total)}
+            ${tallyRow("Contre", "contre", counts.contre, total)}
+            ${tallyRow("Abstention", "abst", counts.abstention, total)}
+          </div>
+        </div>
+      `;
+    }
+
+    function getRemainingSeconds() {
+      if (!countdownDeadline || timerProlonged) return 0;
+      return Math.max(0, Math.ceil((countdownDeadline - Date.now()) / 1000));
+    }
+
+    function clearVoteTimer() {
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = null;
+      countdownDeadline = null;
+      autoStopInProgress = false;
+    }
+
+    function beginVoteTimer(seconds = DEFAULT_VOTE_SECONDS) {
+      if (countdownInterval) clearInterval(countdownInterval);
+      timerProlonged = false;
+      autoStopInProgress = false;
+      countdownDeadline = Date.now() + seconds * 1000;
+      countdownInterval = setInterval(async () => {
+        const timerValue = document.getElementById("timerValue");
+        const remaining = getRemainingSeconds();
+        if (timerValue) timerValue.textContent = remaining;
+        if (remaining <= 0 && session && session.status === "voting" && !timerProlonged && !autoStopInProgress) {
+          autoStopInProgress = true;
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+          await updateStatus("stopped");
+        }
+      }, 200);
+    }
+
+    async function startVoting() {
+      beginVoteTimer(DEFAULT_VOTE_SECONDS);
+      const ok = await updateStatus("voting");
+      if (!ok) { clearVoteTimer(); return; }
+      if (presenceChannel) {
+        await presenceChannel.send({
+          type: "broadcast",
+          event: "vote_timer",
+          payload: { seconds: DEFAULT_VOTE_SECONDS }
+        });
+      }
+      render();
+    }
+
+    async function prolongVoting() {
+      if (!session || session.status !== "voting" || timerProlonged) return;
+      timerProlonged = true;
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = null;
+      countdownDeadline = null;
+      if (presenceChannel) {
+        await presenceChannel.send({
+          type: "broadcast",
+          event: "vote_timer_prolonged",
+          payload: {}
+        });
+      }
+      render();
     }
 
     function tallyRow(label, cls, count, total) {
@@ -105,9 +200,11 @@
 
     async function updateStatus(status) {
       const { error } = await sb.from("sessions").update({ status }).eq("id", session.id);
-      if (error) { alert("Erreur : " + error.message); return; }
+      if (error) { alert("Erreur : " + error.message); return false; }
       session.status = status;
+      if (status !== "voting") clearVoteTimer();
       render();
+      return true;
     }
 
     async function closeSessionPermanently() {
@@ -124,6 +221,7 @@
       if (delSessionErr) { alert("Erreur : " + delSessionErr.message); if (closeBtn) closeBtn.disabled = false; return; }
 
       if (resyncTimer) clearInterval(resyncTimer);
+      clearVoteTimer();
       if (channel) sb.removeChannel(channel);
       if (presenceChannel) sb.removeChannel(presenceChannel);
       session = null;
@@ -145,6 +243,8 @@
 
       session.status = "idle";
       votes = [];
+      timerProlonged = false;
+      clearVoteTimer();
       render();
     }
 
