@@ -239,6 +239,65 @@ button.danger:hover { background: var(--contre-bg); }
 }
 .qrcode-wrap img, .qrcode-wrap canvas, .qrcode-wrap table { display: block; }
 
+/* Segmented Control : Bascule organisateur / présentation */
+.segmented-control {
+  display: flex;
+  position: relative;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+
+.segmented-control input[type="radio"] {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.segmented-control label {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  color: var(--navy);
+  cursor: pointer;
+  z-index: 2;
+  transition: color 0.25s ease;
+  user-select: none;
+}
+
+.segmented-control .segment-slider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  background: var(--paper);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(22, 35, 47, 0.1);
+  transition: transform 0.25s cubic-bezier(0.4, 0.0, 0.2, 1);
+  z-index: 1;
+}
+
+.segmented-control input#mode-pres:checked ~ .segment-slider {
+  transform: translateX(100%);
+}
+
+.segmented-control input#mode-org:checked ~ label[for="mode-org"],
+.segmented-control input#mode-pres:checked ~ label[for="mode-pres"] {
+  color: var(--navy-2);
+}
+
+.segmented-control input[type="radio"]:focus-visible + label {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .url-line {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -295,4 +354,3 @@ button.danger:hover { background: var(--contre-bg); }
   color: var(--pour);
   letter-spacing: 0.04em;
 }
-\n\n/* Bascule organisateur / présentation */\n.display-mode-row {\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 10px;\n  margin: -2px 2px 12px;\n}\n\n.display-mode-label {\n  font-size: 13px;\n  font-weight: 600;\n  color: var(--navy-2);\n}\n\n.mode-switch {\n  position: relative;\n  display: inline-block;\n  width: 42px;\n  height: 24px;\n  flex: 0 0 auto;\n}\n\n.mode-switch input {\n  opacity: 0;\n  width: 0;\n  height: 0;\n}\n\n.mode-slider {\n  position: absolute;\n  inset: 0;\n  cursor: pointer;\n  background: var(--rule);\n  border-radius: 999px;\n  transition: 0.2s ease;\n}\n\n.mode-slider::before {\n  content: \"\";\n  position: absolute;\n  width: 18px;\n  height: 18px;\n  left: 3px;\n  top: 3px;\n  background: var(--paper);\n  border-radius: 50%;\n  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);\n  transition: 0.2s ease;\n}\n\n.mode-switch input:checked + .mode-slider {\n  background: var(--navy);\n}\n\n.mode-switch input:checked + .mode-slider::before {\n  transform: translateX(18px);\n}\n\n.mode-switch input:focus-visible + .mode-slider {\n  outline: 2px solid var(--navy);\n  outline-offset: 2px;\n}\n

@@ -77,12 +77,12 @@
 
         ${resultHtml}
 
-        <div class="display-mode-row">
-          <span id="displayModeLabel" class="display-mode-label">${presentationMode ? "Mode présentation" : "Mode organisateur"}</span>
-          <label class="mode-switch" title="Masquer ou afficher le dépouillement en direct">
-            <input id="presentationToggle" type="checkbox" ${presentationMode ? "checked" : ""}>
-            <span class="mode-slider" aria-hidden="true"></span>
-          </label>
+        <div class="segmented-control" title="Basculer le mode d'affichage">
+          <input type="radio" id="mode-org" name="display-mode" value="org" ${!presentationMode ? "checked" : ""}>
+          <label for="mode-org">Organisateur</label>
+          <input type="radio" id="mode-pres" name="display-mode" value="pres" ${presentationMode ? "checked" : ""}>
+          <label for="mode-pres">Présentation</label>
+          <div class="segment-slider"></div>
         </div>
 
         ${presentationMode ? "" : `
@@ -118,10 +118,12 @@
       document.getElementById("resultsBtn").onclick = () => updateStatus("results");
       document.getElementById("newBtn").onclick = resetSessionForNewItem;
       document.getElementById("closeBtn").onclick = closeSessionPermanently;
-      document.getElementById("presentationToggle").onchange = (event) => {
-        presentationMode = event.target.checked;
-        render();
-      };
+      document.getElementsByName("display-mode").forEach(radio => {
+        radio.onchange = (event) => {
+          presentationMode = (event.target.value === "pres");
+          render();
+        };
+      });
     }
 
 
