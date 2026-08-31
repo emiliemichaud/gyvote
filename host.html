@@ -52,7 +52,24 @@
       const timerHtml = session.status === "voting"
         ? `<div class="vote-timer ${timerProlonged ? "extended" : ""}">${timerProlonged ? "Temps prolongé" : `<span id="timerValue">${getRemainingSeconds()}</span> s`}</div>`
         : "";
-      const resultHtml = session.status === "results" ? buildResultCard(counts, total) : "";
+
+      let lowerContent = "";
+      if (session.status === "results") {
+        lowerContent = buildResultCard(counts, total, presentationMode, onlineCount);
+      } else if (!presentationMode) {
+        lowerContent = `
+        <div class="card">
+          <div class="eyebrow center" style="display:block; margin-bottom:6px;">Dépouillement en direct</div>
+          <div class="turnout" style="margin-bottom:8px;">${onlineCount} connexion${onlineCount > 1 ? "s" : ""} en ce moment</div>
+          <div class="tally">
+            ${tallyRow("Pour", "pour", counts.pour, total)}
+            ${tallyRow("Contre", "contre", counts.contre, total)}
+            ${tallyRow("Abstention", "abst", counts.abstention, total)}
+          </div>
+          <div class="turnout" style="margin-top:14px;">${total} vote${total > 1 ? "s" : ""} enregistré${total > 1 ? "s" : ""}</div>
+        </div>
+        `;
+      }
 
       app.innerHTML = `
         <div class="card center">
@@ -75,8 +92,6 @@
           </div>
         </div>
 
-        ${resultHtml}
-
         <div class="segmented-control" title="Basculer le mode d'affichage">
           <input type="radio" id="mode-org" name="display-mode" value="org" ${!presentationMode ? "checked" : ""}>
           <label for="mode-org">Organisateur</label>
@@ -85,18 +100,7 @@
           <div class="segment-slider"></div>
         </div>
 
-        ${presentationMode ? "" : `
-        <div class="card">
-          <div class="eyebrow center" style="display:block; margin-bottom:6px;">Dépouillement en direct</div>
-          <div class="turnout" style="margin-bottom:8px;">${onlineCount} connexion${onlineCount > 1 ? "s" : ""} en ce moment</div>
-          <div class="tally">
-            ${tallyRow("Pour", "pour", counts.pour, total)}
-            ${tallyRow("Contre", "contre", counts.contre, total)}
-            ${tallyRow("Abstention", "abst", counts.abstention, total)}
-          </div>
-          <div class="turnout" style="margin-top:14px;">${total} vote${total > 1 ? "s" : ""} enregistré${total > 1 ? "s" : ""}</div>
-        </div>
-        `}
+        ${lowerContent}
 
         <div class="card">
           <button id="closeBtn" class="danger">Clôture de session</button>
@@ -127,15 +131,18 @@
     }
 
 
-    function buildResultCard(counts, total) {
+    function buildResultCard(counts, total, isPresentation, onlineCount) {
       let verdict = "Égalité";
       let verdictClass = "";
       if (counts.pour > counts.contre) { verdict = "Résultat : Pour"; verdictClass = "pour"; }
       else if (counts.contre > counts.pour) { verdict = "Résultat : Contre"; verdictClass = "contre"; }
 
+      const onlineHtml = !isPresentation ? `<div class="turnout" style="margin-bottom:8px;">${onlineCount} connexion${onlineCount > 1 ? "s" : ""} en ce moment</div>` : "";
+
       return `
         <div class="card">
           <div class="verdict ${verdictClass}">${verdict}</div>
+          ${onlineHtml}
           <div class="turnout">${total} votant${total > 1 ? "s" : ""}</div>
           <div class="tally">
             ${tallyRow("Pour", "pour", counts.pour, total)}
