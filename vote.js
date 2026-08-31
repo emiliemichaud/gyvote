@@ -1,4 +1,3 @@
-  <script>
     const code = getSessionCodeFromLocation();
     const app = document.getElementById("app");
 
