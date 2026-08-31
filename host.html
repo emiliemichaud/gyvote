@@ -34,6 +34,7 @@
     let countdownInterval = null;
     let timerProlonged = false;
     let autoStopInProgress = false;
+    let presentationMode = false;
 
     function statusLabel(s) {
       return { idle: "En attente", voting: "Vote en cours", stopped: "Vote clos", results: "Résultats affichés" }[s] || s;
@@ -76,6 +77,15 @@
 
         ${resultHtml}
 
+        <div class="display-mode-row">
+          <span id="displayModeLabel" class="display-mode-label">${presentationMode ? "Mode présentation" : "Mode organisateur"}</span>
+          <label class="mode-switch" title="Masquer ou afficher le dépouillement en direct">
+            <input id="presentationToggle" type="checkbox" ${presentationMode ? "checked" : ""}>
+            <span class="mode-slider" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        ${presentationMode ? "" : `
         <div class="card">
           <div class="eyebrow center" style="display:block; margin-bottom:6px;">Dépouillement en direct</div>
           <div class="turnout" style="margin-bottom:8px;">${onlineCount} connexion${onlineCount > 1 ? "s" : ""} en ce moment</div>
@@ -86,6 +96,7 @@
           </div>
           <div class="turnout" style="margin-top:14px;">${total} vote${total > 1 ? "s" : ""} enregistré${total > 1 ? "s" : ""}</div>
         </div>
+        `}
 
         <div class="card">
           <button id="closeBtn" class="danger">Clôture de session</button>
@@ -107,6 +118,10 @@
       document.getElementById("resultsBtn").onclick = () => updateStatus("results");
       document.getElementById("newBtn").onclick = resetSessionForNewItem;
       document.getElementById("closeBtn").onclick = closeSessionPermanently;
+      document.getElementById("presentationToggle").onchange = (event) => {
+        presentationMode = event.target.checked;
+        render();
+      };
     }
 
 
