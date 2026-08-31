@@ -27,6 +27,7 @@
     const voterId = getVoterId();
     const DEFAULT_VOTE_SECONDS = 10;
     let countdownDeadline = null;
+    let countdownDuration = null;
     let countdownInterval = null;
     let timerProlonged = false;
 
@@ -77,8 +78,11 @@
     }
 
     function timerMarkup() {
-      if (timerProlonged) return `<div class="vote-timer extended">Temps prolongé</div>`;
-      return `<div class="vote-timer"><span id="timerValue">${getRemainingSeconds()}</span> s</div>`;
+      if (timerProlonged) return `<div class="vote-timer-extended">Temps prolongé</div>`;
+      const remainingMs = countdownDeadline ? Math.max(0, countdownDeadline - Date.now()) : 0;
+      const pct = countdownDuration ? (remainingMs / countdownDuration) * 100 : 0;
+      const warningClass = remainingMs <= 3000 ? "warning" : "";
+      return `<div class="timer-bar-track"><div id="timerBarFill" class="timer-bar-fill ${warningClass}" style="width: ${pct}%"></div></div>`;
     }
 
     function stopLocalTimer() {
@@ -90,15 +94,23 @@
     function beginLocalTimer(seconds = DEFAULT_VOTE_SECONDS) {
       if (countdownInterval) clearInterval(countdownInterval);
       timerProlonged = false;
-      countdownDeadline = Date.now() + seconds * 1000;
+      countdownDuration = seconds * 1000;
+      countdownDeadline = Date.now() + countdownDuration;
       countdownInterval = setInterval(() => {
-        const timerValue = document.getElementById("timerValue");
-        if (timerValue) timerValue.textContent = getRemainingSeconds();
-        if (getRemainingSeconds() <= 0) {
+        const remainingMs = Math.max(0, countdownDeadline - Date.now());
+        const timerBarFill = document.getElementById("timerBarFill");
+        if (timerBarFill) {
+          const pct = (remainingMs / countdownDuration) * 100;
+          timerBarFill.style.width = pct + "%";
+          if (remainingMs <= 3000) {
+            timerBarFill.classList.add("warning");
+          }
+        }
+        if (remainingMs <= 0) {
           clearInterval(countdownInterval);
           countdownInterval = null;
         }
-      }, 200);
+      }, 50);
       render();
     }
 
