@@ -71,6 +71,9 @@
         `;
       }
 
+      const startBtnText = session.status === "idle" ? "Démarrer les votes" : "Prolonger le vote de 10 secondes";
+      const extendBtnDisabled = (session.status === "idle" || (session.status === "voting" && timerProlonged)) ? "disabled" : "";
+
       app.innerHTML = `
         <div class="card center">
           <div class="status-banner ${bannerClass}">${statusLabel(session.status)}</div>
@@ -84,8 +87,8 @@
 
         <div class="card">
           <div class="stack">
-            <button id="startBtn" ${session.status === "voting" ? "disabled" : ""}>Démarrer les votes</button>
-            <button id="extendBtn" class="secondary" ${session.status === "voting" && !timerProlonged ? "" : "disabled"}>Prolonger</button>
+            <button id="startBtn" ${session.status === "voting" ? "disabled" : ""}>${startBtnText}</button>
+            <button id="extendBtn" class="secondary" ${extendBtnDisabled}>Prolonger sans limite de temps</button>
             <button id="stopBtn" ${session.status === "voting" ? "" : "disabled"}>Arrêter les votes</button>
             <button id="resultsBtn" ${total === 0 ? "disabled" : ""}>Afficher les résultats des votes</button>
             <button id="newBtn" class="secondary">Nouveau vote (même session)</button>
@@ -198,7 +201,11 @@
     }
 
     async function prolongVoting() {
-      if (!session || session.status !== "voting" || timerProlonged) return;
+      if (!session || timerProlonged) return;
+      if (session.status !== "voting") {
+        const ok = await updateStatus("voting");
+        if (!ok) return;
+      }
       timerProlonged = true;
       if (countdownInterval) clearInterval(countdownInterval);
       countdownInterval = null;
@@ -226,7 +233,10 @@
       const { error } = await sb.from("sessions").update({ status }).eq("id", session.id);
       if (error) { alert("Erreur : " + error.message); return false; }
       session.status = status;
-      if (status !== "voting") clearVoteTimer();
+      if (status !== "voting") {
+        clearVoteTimer();
+        timerProlonged = false;
+      }
       render();
       return true;
     }
