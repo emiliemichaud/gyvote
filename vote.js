@@ -56,7 +56,7 @@
     }
 
     function timerMarkup() {
-      if (timerProlonged) return "";
+      if (timerProlonged) return `<div class="vote-timer-extended">Temps prolongé</div>`;
       const remainingMs = countdownDeadline ? Math.max(0, countdownDeadline - Date.now()) : 0;
       const pct = countdownDuration ? (remainingMs / countdownDuration) * 100 : 0;
       const warningClass = remainingMs <= 3000 ? "warning" : "";
