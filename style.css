@@ -340,17 +340,30 @@ button.danger:hover { background: var(--contre-bg); }
   padding: 40px 10px;
   color: var(--navy-2);
 }
-/* Compte à rebours du vote */
-.vote-timer {
-  font-family: var(--font-mono);
-  font-size: 34px;
-  font-weight: 700;
-  color: var(--navy-2);
+/* Timer visuel du vote */
+.timer-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--paper-2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: -4px 0 18px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+}
+.timer-bar-fill {
+  height: 100%;
+  background: var(--navy);
+  border-radius: 4px;
+  transition: width 0.1s linear, background-color 0.3s ease;
+}
+.timer-bar-fill.warning {
+  background: var(--contre);
+}
+.vote-timer-extended {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pour);
   text-align: center;
   margin: -4px 0 18px;
-}
-.vote-timer.extended {
-  font-size: 16px;
-  color: var(--pour);
   letter-spacing: 0.04em;
 }
