@@ -12,12 +12,11 @@
     let countdownDeadline = null;
     let countdownDuration = null;
     let countdownInterval = null;
-    let timerProlonged = false;
     let autoStopInProgress = false;
     let presentationMode = false;
 
     function statusLabel(s) {
-      return { idle: "En attente", voting: "Vote en cours", stopped: "Vote clos", results: "Résultats affichés" }[s] || s;
+      return { idle: "En attente", voting: "Vote en cours", prolonged: "Vote en cours", stopped: "Vote clos", results: "Résultats affichés" }[s] || s;
     }
 
     function render() {
@@ -28,11 +27,12 @@
       const counts = tallyCounts(votes);
       const total = counts.pour + counts.contre + counts.abstention;
       const url = voteUrlForCode(session.code);
-      const bannerClass = session.status === "voting" ? "voting" : session.status === "stopped" ? "stopped" : "";
+      const isVotingMode = (session.status === "voting" || session.status === "prolonged");
+      const bannerClass = isVotingMode ? "voting" : session.status === "stopped" ? "stopped" : "";
       
       let timerHtml = "";
-      if (session.status === "voting") {
-        if (timerProlonged) {
+      if (isVotingMode) {
+        if (session.status === "prolonged") {
           timerHtml = `<div class="vote-timer-extended">Temps prolongé</div>`;
         } else {
           const remainingMs = countdownDeadline ? Math.max(0, countdownDeadline - Date.now()) : 0;
@@ -61,7 +61,7 @@
       }
 
       const startBtnText = session.status === "idle" ? "Démarrer les votes" : "Prolonger le vote de 10 secondes";
-      const extendBtnDisabled = (session.status === "idle" || (session.status === "voting" && timerProlonged)) ? "disabled" : "";
+      const extendBtnDisabled = (session.status === "idle" || session.status === "prolonged") ? "disabled" : "";
 
       app.innerHTML = `
         <div class="card center">
@@ -76,9 +76,9 @@
 
         <div class="card">
           <div class="stack">
-            <button id="startBtn" ${session.status === "voting" ? "disabled" : ""}>${startBtnText}</button>
+            <button id="startBtn" ${isVotingMode ? "disabled" : ""}>${startBtnText}</button>
             <button id="extendBtn" class="secondary" ${extendBtnDisabled}>Prolonger sans limite de temps</button>
-            <button id="stopBtn" ${session.status === "voting" ? "" : "disabled"}>Arrêter les votes</button>
+            <button id="stopBtn" ${isVotingMode ? "" : "disabled"}>Arrêter les votes</button>
             <button id="resultsBtn" ${total === 0 ? "disabled" : ""}>Afficher les résultats des votes</button>
             <button id="newBtn" class="secondary">Nouveau vote (même session)</button>
           </div>
@@ -159,7 +159,6 @@
 
     function beginVoteTimer(seconds = DEFAULT_VOTE_SECONDS) {
       if (countdownInterval) clearInterval(countdownInterval);
-      timerProlonged = false;
       autoStopInProgress = false;
       countdownDuration = seconds * 1000;
       countdownDeadline = Date.now() + countdownDuration;
@@ -175,7 +174,7 @@
           }
         }
         
-        if (remainingMs <= 0 && session && session.status === "voting" && !timerProlonged && !autoStopInProgress) {
+        if (remainingMs <= 0 && session && session.status === "voting" && !autoStopInProgress) {
           autoStopInProgress = true;
           clearInterval(countdownInterval);
           countdownInterval = null;
@@ -199,23 +198,9 @@
     }
 
     async function prolongVoting() {
-      if (!session || timerProlonged) return;
-      if (session.status !== "voting") {
-        const ok = await updateStatus("voting");
-        if (!ok) return;
-      }
-      timerProlonged = true;
-      if (countdownInterval) clearInterval(countdownInterval);
-      countdownInterval = null;
-      countdownDeadline = null;
-      if (presenceChannel) {
-        await presenceChannel.send({
-          type: "broadcast",
-          event: "vote_timer_prolonged",
-          payload: {}
-        });
-      }
-      render();
+      if (!session || session.status === "prolonged") return;
+      const ok = await updateStatus("prolonged");
+      if (!ok) return;
     }
 
     function tallyRow(label, cls, count, total) {
@@ -231,9 +216,8 @@
       const { error } = await sb.from("sessions").update({ status }).eq("id", session.id);
       if (error) { alert("Erreur : " + error.message); return false; }
       session.status = status;
-      if (status !== "voting") {
+      if (status !== "voting" && status !== "prolonged") {
         clearVoteTimer();
-        timerProlonged = false;
       }
       render();
       return true;
@@ -275,7 +259,6 @@
 
       session.status = "idle";
       votes = [];
-      timerProlonged = false;
       clearVoteTimer();
       render();
     }
