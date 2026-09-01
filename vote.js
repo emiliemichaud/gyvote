@@ -3,7 +3,7 @@
 
     let sb, session, hasVoted = false, votes = [], voting = false;
     const voterId = getVoterId();
-    const DEFAULT_VOTE_SECONDS = 10;
+    const DEFAULT_VOTE_SECONDS = 15;
     let countdownDeadline = null;
     let countdownDuration = null;
     let countdownInterval = null;

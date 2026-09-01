@@ -8,7 +8,7 @@
     let onlineCount = 0;
     let sb;
 
-    const DEFAULT_VOTE_SECONDS = 10;
+    const DEFAULT_VOTE_SECONDS = 15;
     let countdownDeadline = null;
     let countdownDuration = null;
     let countdownInterval = null;
@@ -63,7 +63,7 @@
         `;
       }
 
-      const startBtnText = session.status === "idle" ? "Démarrer les votes" : "Prolonger le vote de 10 secondes";
+      const startBtnText = session.status === "idle" ? "Démarrer les votes" : "Prolonger le vote de 15 secondes";
       const extendBtnDisabled = (session.status === "idle" || session.status === "prolonged") ? "disabled" : "";
 
       app.innerHTML = `
