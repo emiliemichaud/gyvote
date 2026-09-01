@@ -8,7 +8,7 @@
     let onlineCount = 0;
     let sb;
 
-    const DEFAULT_VOTE_SECONDS = 10;
+    const DEFAULT_VOTE_SECONDS = 15;
     let countdownDeadline = null;
     let countdownDuration = null;
     let countdownInterval = null;
@@ -18,6 +18,9 @@
     function statusLabel(s) {
       return { idle: "En attente", voting: "Vote en cours", prolonged: "Vote en cours", stopped: "Vote clos", results: "Résultats affichés" }[s] || s;
     }
+
+    let isQrModalOpen = false;
+    let isDrawerOpen = false;
 
     function render() {
       if (!session) {
@@ -60,50 +63,78 @@
         `;
       }
 
-      const startBtnText = session.status === "idle" ? "Démarrer les votes" : "Prolonger le vote de 10 secondes";
+      const startBtnText = session.status === "idle" ? "Démarrer les votes" : "Prolonger le vote de 15 secondes";
       const extendBtnDisabled = (session.status === "idle" || session.status === "prolonged") ? "disabled" : "";
 
       app.innerHTML = `
-        <div class="card center">
-          <div class="status-banner ${bannerClass}">${statusLabel(session.status)}</div>
-          ${timerHtml}
-          <div class="code-display">${session.code}</div>
-          <div class="qrcode-wrap"><div id="qrcode"></div></div>
+        <button class="panel-toggle-btn" id="openPanelBtn">☰ Infos Session</button>
+
+        <div class="side-panel ${isDrawerOpen ? 'open' : ''}" id="sidePanel">
+          <button class="panel-close-btn" id="closePanelBtn">&times;</button>
+          <h3 style="margin-bottom: 16px; color: var(--navy-2); text-align: center;">Rejoindre</h3>
+          <div class="code-display" style="padding: 0 0 10px 0;">${session.code}</div>
+          <div class="qrcode-wrap" id="qrClickable" title="Agrandir le QR code" style="cursor: zoom-in;"><div id="qrcode"></div></div>
           <div class="url-line">${url}</div>
           <p class="hint">Les participants scannent ce QR code ou saisissent le code sur ${window.location.origin}</p>
-          <p class="hint">Cette session expirera automatiquement le ${formatExpiryDate(session)}.</p>
         </div>
 
-        <div class="card">
-          <div class="stack">
-            <button id="startBtn" ${isVotingMode ? "disabled" : ""}>${startBtnText}</button>
-            <button id="extendBtn" class="secondary" ${extendBtnDisabled}>Prolonger sans limite de temps</button>
-            <button id="stopBtn" ${isVotingMode ? "" : "disabled"}>Arrêter les votes</button>
-            <button id="resultsBtn" ${total === 0 ? "disabled" : ""}>Afficher les résultats des votes</button>
-            <button id="newBtn" class="secondary">Nouveau vote (même session)</button>
+        <div class="layout-container">
+          <div class="main-content">
+            <div class="card center">
+              <div class="status-banner ${bannerClass}">${statusLabel(session.status)}</div>
+              ${timerHtml}
+              <p class="hint">Cette session expirera automatiquement le ${formatExpiryDate(session)}.</p>
+            </div>
+
+            <div class="card">
+              <div class="stack">
+                <button id="startBtn" ${isVotingMode ? "disabled" : ""}>${startBtnText}</button>
+                <button id="extendBtn" class="secondary" ${extendBtnDisabled}>Prolonger sans limite de temps</button>
+                <button id="stopBtn" ${isVotingMode ? "" : "disabled"}>Arrêter les votes</button>
+                <button id="resultsBtn" ${total === 0 ? "disabled" : ""}>Afficher les résultats des votes</button>
+                <button id="newBtn" class="secondary">Nouveau vote (même session)</button>
+              </div>
+            </div>
+
+            <div class="segmented-control" title="Basculer le mode d'affichage">
+              <input type="radio" id="mode-org" name="display-mode" value="org" ${!presentationMode ? "checked" : ""}>
+              <label for="mode-org">Organisateur</label>
+              <input type="radio" id="mode-pres" name="display-mode" value="pres" ${presentationMode ? "checked" : ""}>
+              <label for="mode-pres">Présentation</label>
+              <div class="segment-slider"></div>
+            </div>
+
+            ${lowerContent}
+
+            <div class="card">
+              <button id="closeBtn" class="danger">Clôture de session</button>
+              <p class="hint" style="margin-top:10px;">Ferme définitivement cette session et supprime tous ses votes de la base de données. Action irréversible.</p>
+            </div>
           </div>
         </div>
 
-        <div class="segmented-control" title="Basculer le mode d'affichage">
-          <input type="radio" id="mode-org" name="display-mode" value="org" ${!presentationMode ? "checked" : ""}>
-          <label for="mode-org">Organisateur</label>
-          <input type="radio" id="mode-pres" name="display-mode" value="pres" ${presentationMode ? "checked" : ""}>
-          <label for="mode-pres">Présentation</label>
-          <div class="segment-slider"></div>
-        </div>
-
-        ${lowerContent}
-
-        <div class="card">
-          <button id="closeBtn" class="danger">Clôture de session</button>
-          <p class="hint" style="margin-top:10px;">Ferme définitivement cette session et supprime tous ses votes de la base de données. Action irréversible.</p>
+        <div id="qrModal" class="modal-overlay" style="display: ${isQrModalOpen ? 'flex' : 'none'};">
+          <div class="modal-content">
+            <span class="modal-close" id="qrModalClose">&times;</span>
+            <div class="code-display" style="font-size: 54px; margin-bottom: 20px;">${session.code}</div>
+            <div id="qrcode-large"></div>
+            <div class="url-line" style="font-size: 20px; margin-top: 20px;">${url}</div>
+          </div>
         </div>
       `;
 
       new QRCode(document.getElementById("qrcode"), {
         text: url,
-        width: 220,
-        height: 220,
+        width: 180,
+        height: 180,
+        colorDark: "#1c2321",
+        colorLight: "#ffffff",
+      });
+
+      new QRCode(document.getElementById("qrcode-large"), {
+        text: url,
+        width: 400,
+        height: 400,
         colorDark: "#1c2321",
         colorLight: "#ffffff",
       });
@@ -120,6 +151,32 @@
           render();
         };
       });
+
+      document.getElementById("openPanelBtn").onclick = () => {
+        isDrawerOpen = true;
+        document.getElementById("sidePanel").classList.add("open");
+      };
+      
+      document.getElementById("closePanelBtn").onclick = () => {
+        isDrawerOpen = false;
+        document.getElementById("sidePanel").classList.remove("open");
+      };
+
+      const qrModal = document.getElementById("qrModal");
+      document.getElementById("qrClickable").onclick = () => {
+        isQrModalOpen = true;
+        qrModal.style.display = "flex";
+      };
+      document.getElementById("qrModalClose").onclick = () => {
+        isQrModalOpen = false;
+        qrModal.style.display = "none";
+      };
+      qrModal.onclick = (e) => {
+        if (e.target === qrModal) {
+          isQrModalOpen = false;
+          qrModal.style.display = "none";
+        }
+      };
     }
 
 

@@ -24,11 +24,55 @@ Gyvote est une application web légère de vote interactif et en temps réel, co
 ## Prérequis et Installation
 
 1. Disposer d'un projet Supabase (https://supabase.com).
-2. Créer les tables nécessaires dans Supabase :
-   * `sessions` : `id` (uuid), `code` (text), `status` (text), `host_secret` (text), `created_at` (timestamp).
-   * `votes` : `id` (uuid), `session_id` (uuid, reference), `voter_id` (text), `choice` (text).
-3. Configurer les accès anonymes et activer les extensions Realtime sur ces tables.
-4. Ajouter vos identifiants Supabase dans `supabase-config.js` (ces variables peuvent être injectées lors du déploiement) :
+2. Créer les tables, les politiques de sécurité (RLS) et activer le temps réel en exécutant ce script SQL dans le **SQL Editor** de Supabase :
+
+   ```sql
+   -- 1. Création de la table 'sessions'
+   CREATE TABLE sessions (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     code text UNIQUE NOT NULL,
+     status text NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'voting', 'prolonged', 'stopped', 'results')),
+     host_secret text NOT NULL DEFAULT gen_random_uuid()::text,
+     created_at timestamptz NOT NULL DEFAULT now()
+   );
+
+   -- 2. Création de la table 'votes'
+   CREATE TABLE votes (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     session_id uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+     voter_id text NOT NULL,
+     choice text NOT NULL,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     UNIQUE (session_id, voter_id)
+   );
+
+   -- 3. Activer Row Level Security (RLS)
+   ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE votes ENABLE ROW LEVEL SECURITY;
+
+   -- 4. Politiques pour 'sessions' (Application publique, tout le monde peut gérer les sessions)
+   CREATE POLICY "sessions: lecture publique" ON sessions FOR SELECT USING (true);
+   CREATE POLICY "sessions: insertion publique" ON sessions FOR INSERT WITH CHECK (true);
+   CREATE POLICY "sessions: mise à jour publique" ON sessions FOR UPDATE USING (true);
+   CREATE POLICY "sessions: suppression publique" ON sessions FOR DELETE USING (true);
+
+   -- 5. Politiques pour 'votes' (Seulement si le vote est ouvert ou prolongé)
+   CREATE POLICY "votes: lecture publique" ON votes FOR SELECT USING (true);
+   CREATE POLICY "votes: uniquement si vote ouvert" ON votes FOR INSERT WITH CHECK (
+     EXISTS (
+       SELECT 1 FROM sessions
+       WHERE sessions.id = session_id
+         AND sessions.status IN ('voting', 'prolonged')
+     )
+   );
+   CREATE POLICY "votes: suppression publique" ON votes FOR DELETE USING (true);
+
+   -- 6. Activer le temps réel (Realtime)
+   ALTER PUBLICATION supabase_realtime ADD TABLE sessions;
+   ALTER PUBLICATION supabase_realtime ADD TABLE votes;
+   ```
+
+3. Ajouter vos identifiants Supabase dans le fichier `supabase-config.js` (ces variables peuvent être injectées lors du déploiement) :
    ```javascript
    window.SUPABASE_URL = "https://VOTRE_PROJET.supabase.co";
    window.SUPABASE_ANON_KEY = "VOTRE_CLE_ANON";
